@@ -7,19 +7,28 @@ import { MODAL_ID } from "./constants";
  * (filters sidebar + a grid of results). So the popover behind the action icon is
  * this near-invisible page: its only job is to immediately open the real UI as a
  * fullscreen modal, then close itself.
+ *
+ * Owlbear keeps this popover's iframe alive across opens rather than reloading it
+ * fresh on every click (found by trial and error: opening the modal directly in
+ * `OBR.onReady` fired once, whenever the room first loaded the iframe, and never
+ * again on later clicks). `onOpenChange` fires every time the popover is actually
+ * shown, so the modal reliably (re)opens on every click instead.
  */
 OBR.onReady(() => {
-  OBR.modal.open({
-    id: MODAL_ID,
-    // A relative "index.html" is NOT resolved against this page's own location by
-    // Owlbear - found by trial and error, it gets concatenated onto the bare
-    // origin instead (breaking under any subpath deployment, GitHub Pages project
-    // sites included: "https://user.github.ioindex.html"). Resolving it ourselves
-    // with the standard URL constructor sidesteps that entirely, and still works
-    // unchanged in dev/tunnel testing since it's relative to wherever this page
-    // itself was actually loaded from.
-    url: new URL("index.html", document.baseURI).href,
-    fullScreen: true,
+  OBR.action.onOpenChange((isOpen) => {
+    if (!isOpen) return;
+    OBR.modal.open({
+      id: MODAL_ID,
+      // A relative "index.html" is NOT resolved against this page's own location
+      // by Owlbear - found by trial and error, it gets concatenated onto the bare
+      // origin instead (breaking under any subpath deployment, GitHub Pages
+      // project sites included: "https://user.github.ioindex.html"). Resolving it
+      // ourselves with the standard URL constructor sidesteps that entirely, and
+      // still works unchanged in dev/tunnel testing since it's relative to
+      // wherever this page itself was actually loaded from.
+      url: new URL("index.html", document.baseURI).href,
+      fullScreen: true,
+    });
+    OBR.action.close();
   });
-  OBR.action.close();
 });
