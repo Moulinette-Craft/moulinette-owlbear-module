@@ -72,10 +72,25 @@ body {
   display: inline-block;
 }
 
+.mou-header-right {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
 .mou-account {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.mou-close {
+  padding: 6px 9px;
+}
+
+.mou-close:hover {
+  color: var(--mou-danger);
+  border-color: var(--mou-danger);
 }
 
 .mou-account-loading,

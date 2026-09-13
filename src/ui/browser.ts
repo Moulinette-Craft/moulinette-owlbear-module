@@ -7,6 +7,7 @@ import { BBCSoundsCollection } from "../collections/bbcsounds";
 import { Auth } from "../auth";
 import { getAdvancedSettings, setAdvancedSettings } from "../storage";
 import { debounce, escapeHtml, prettyNumber } from "../utils";
+import { MODAL_ID } from "../constants";
 
 const TYPE_LABELS: Record<AssetType, { label: string; icon: string }> = {
   [AssetType.Map]: { label: "Maps", icon: "fa-solid fa-map" },
@@ -50,7 +51,10 @@ export class MoulinetteBrowser {
       <div class="mou-app">
         <header class="mou-header">
           <div class="mou-brand"><span class="mou-logo"></span> Moulinette Media Search</div>
-          <div class="mou-account" id="mou-account"></div>
+          <div class="mou-header-right">
+            <div class="mou-account" id="mou-account"></div>
+            <button class="mou-btn mou-close" id="mou-close" title="Close (Esc)"><i class="fa-solid fa-xmark"></i></button>
+          </div>
         </header>
         <div class="mou-body">
           <aside class="mou-sidebar">
@@ -114,6 +118,17 @@ export class MoulinetteBrowser {
       this.currentAudioAssetId = null;
       this.updatePlayButtons();
     });
+
+    // A fullScreen OBR.modal replaces the entire Owlbear UI with no host-provided
+    // close button - without this, there would be no way back to the room at all.
+    this.el("#mou-close").addEventListener("click", () => this.close());
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") this.close();
+    });
+  }
+
+  private close(): void {
+    OBR.modal.close(MODAL_ID);
   }
 
   private el<T extends HTMLElement = HTMLElement>(selector: string): T {

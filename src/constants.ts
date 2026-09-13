@@ -20,6 +20,11 @@ export const LS_SETTINGS = "moulinette:settings";
 
 export const EXTENSION_ID = "cloud.moulinette.owlbear-media-search";
 
+// Shared between src/action.ts (which opens this modal) and src/ui/browser.ts
+// (which needs the same id to close it again - a fullScreen modal replaces the
+// entire Owlbear UI with no host-provided close button of its own).
+export const MODAL_ID = `${EXTENSION_ID}/browser`;
+
 export const PAGE_SIZE = 60;
 
 // Below this size (in cell-units), a source image found in a Moulinette pack is

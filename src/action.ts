@@ -1,5 +1,5 @@
 import OBR from "@owlbear-rodeo/sdk";
-import { EXTENSION_ID } from "./constants";
+import { MODAL_ID } from "./constants";
 
 /**
  * Owlbear Rodeo's toolbar action can only open a fixed-size popover (see
@@ -9,9 +9,8 @@ import { EXTENSION_ID } from "./constants";
  * fullscreen modal, then close itself.
  */
 OBR.onReady(() => {
-  const modalId = `${EXTENSION_ID}/browser`;
   OBR.modal.open({
-    id: modalId,
+    id: MODAL_ID,
     // A relative "index.html" is NOT resolved against this page's own location by
     // Owlbear - found by trial and error, it gets concatenated onto the bare
     // origin instead (breaking under any subpath deployment, GitHub Pages project
