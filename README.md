@@ -3,7 +3,7 @@
 An [Owlbear Rodeo](https://www.owlbear.rodeo/) extension that brings the core of the
 [FoundryVTT Moulinette module](https://github.com/SvenWerlen/moulinette-foundryvtt-module)
 to Owlbear: search, preview and drop maps, images, icons and sound effects onto your
-scene, without leaving the game.
+scene, without leaving the game. 
 
 #### Features
 
