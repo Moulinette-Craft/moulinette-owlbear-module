@@ -12,11 +12,14 @@ OBR.onReady(() => {
   const modalId = `${EXTENSION_ID}/browser`;
   OBR.modal.open({
     id: modalId,
-    // Relative, not "/index.html": this page and index.html are always served as
-    // siblings from wherever the extension is hosted (including under a GitHub
-    // Pages project subpath like "/moulinette-owlbear-module/"), and a
-    // root-absolute path would resolve to the wrong place there.
-    url: "index.html",
+    // A relative "index.html" is NOT resolved against this page's own location by
+    // Owlbear - found by trial and error, it gets concatenated onto the bare
+    // origin instead (breaking under any subpath deployment, GitHub Pages project
+    // sites included: "https://user.github.ioindex.html"). Resolving it ourselves
+    // with the standard URL constructor sidesteps that entirely, and still works
+    // unchanged in dev/tunnel testing since it's relative to wherever this page
+    // itself was actually loaded from.
+    url: new URL("index.html", document.baseURI).href,
     fullScreen: true,
   });
   OBR.action.close();
