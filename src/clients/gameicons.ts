@@ -1,7 +1,7 @@
 import { MOU_API } from "../constants";
 
 export interface GameIcon {
-  id: string; // e.g. "delapouite/dragon-head"
+  id: string; // e.g. "1x1/faithtoken/dragon-head"
   author: string;
   name: string;
   url: string; // white-on-transparent SVG, hosted on game-icons.net
@@ -58,12 +58,17 @@ export const GameIconsClient = {
    * game-icons.net doesn't allow cross-origin fetches directly) and recolors it,
    * returning a `data:` URL - no server-side storage needed, unlike the
    * FoundryVTT module which uploads the recolored file to Foundry's own file server.
+   *
+   * @param iconId - The icon's *id* (e.g. "1x1/faithtoken/dragon-head", i.e.
+   * `GameIcon.id`, not `GameIcon.url`). Despite the relay's own field being named
+   * "url", found by trial and error that it actually expects this bare id and
+   * 400s on the full https://game-icons.net/... URL.
    */
-  async downloadRecolored(iconUrl: string, fgColor: string, bgColor: string): Promise<string> {
+  async downloadRecolored(iconId: string, fgColor: string, bgColor: string): Promise<string> {
     const response = await fetch(`${MOU_API}/gameicons/download`, {
       method: "POST",
       headers: { Accept: "application/json", "Content-Type": "application/json" },
-      body: JSON.stringify({ url: iconUrl }),
+      body: JSON.stringify({ url: iconId }),
     });
     if (!response.ok) throw new Error(`Failed to download icon: HTTP ${response.status}`);
     let svg = await response.text();

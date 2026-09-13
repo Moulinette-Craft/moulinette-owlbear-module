@@ -71,12 +71,13 @@ export class GameIconsCollection implements MediaCollection {
     const { fgColor, bgColor } = getAdvancedSettings().image;
     switch (actionId) {
       case "add": {
-        const dataUrl = await GameIconsClient.downloadRecolored(asset.url, fgColor, bgColor);
+        // asset.id, not asset.url - see the doc comment on downloadRecolored().
+        const dataUrl = await GameIconsClient.downloadRecolored(asset.id, fgColor, bgColor);
         await addImageToScene(dataUrl, { name: asset.name });
         break;
       }
       case "download": {
-        const dataUrl = await GameIconsClient.downloadRecolored(asset.url, fgColor, bgColor);
+        const dataUrl = await GameIconsClient.downloadRecolored(asset.id, fgColor, bgColor);
         window.open(dataUrl, "_blank");
         break;
       }
