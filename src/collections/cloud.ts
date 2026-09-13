@@ -32,7 +32,10 @@ interface RawAsset {
 
 function toMediaAsset(raw: RawAsset): MediaAsset | null {
   const type = RAW_TYPE_TO_ASSET_TYPE[raw.type];
-  if (!type) return null;
+  // A handful of records in `/all-assets` come back with no resolvable pack (seen
+  // in practice, cause unconfirmed) - skip just that one record rather than
+  // letting it throw and abort mapping the entire (otherwise valid) asset list.
+  if (!type || !raw.pack) return null;
 
   const basePath = raw.filepath.replace(/\.[^/.]+$/, "");
   let previewUrl =

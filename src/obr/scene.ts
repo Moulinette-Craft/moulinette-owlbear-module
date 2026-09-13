@@ -3,6 +3,16 @@ import { DEFAULT_SOURCE_PIXELS_PER_CELL } from "../constants";
 import { loadImage } from "../utils";
 
 function mimeFromUrl(url: string): string {
+  // Game-icons.net and Font Awesome are added via a `data:` URL (recolored SVG or
+  // rasterized PNG, built client-side - see gameicons.ts/fontawesome-render.ts).
+  // Those have no file extension to inspect (and the base64 payload can't contain
+  // "." by construction, so the extension-based lookup below would silently fall
+  // through to its "image/png" default even for an SVG) - the MIME type is
+  // already right there in the URI itself.
+  if (url.startsWith("data:")) {
+    const match = url.match(/^data:([^;,]+)/);
+    if (match) return match[1];
+  }
   const ext = url.split("?")[0].split(".").pop()?.toLowerCase();
   switch (ext) {
     case "png":
