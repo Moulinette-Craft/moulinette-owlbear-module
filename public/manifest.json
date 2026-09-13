@@ -1,14 +1,14 @@
 {
   "name": "Moulinette Media Search",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "manifest_version": 1,
   "author": "Sven Werlen",
   "description": "Search, preview and drop maps, images, icons and sound effects from Moulinette Cloud.",
-  "icon": "https://moulinette-craft.github.io/moulinette-owlbear-module/icon.svg",
+  "icon": "/icon.svg",
   "action": {
     "title": "Moulinette Media Search",
-    "icon": "https://moulinette-craft.github.io/moulinette-owlbear-module/icon.svg",
-    "popover": "https://moulinette-craft.github.io/moulinette-owlbear-module/action.html",
+    "icon": "/icon.svg",
+    "popover": "/action.html",
     "height": 1,
     "width": 1
   }

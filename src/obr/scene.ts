@@ -1,6 +1,7 @@
-import OBR, { buildImage, Image as ObrImage } from "@owlbear-rodeo/sdk";
+import OBR, { buildImage, buildImageUpload, Image as ObrImage, ImageAssetType } from "@owlbear-rodeo/sdk";
 import { DEFAULT_SOURCE_PIXELS_PER_CELL } from "../constants";
 import { loadImage } from "../utils";
+import { debugLog, describeError } from "../debug";
 
 function mimeFromUrl(url: string): string {
   // Game-icons.net and Font Awesome are added via a `data:` URL (recolored SVG or
@@ -88,6 +89,53 @@ export async function addImageToScene(url: string, options: AddImageOptions): Pr
   }
 
   await OBR.scene.items.addItems([built]);
+}
+
+const EXT_FROM_MIME: Record<string, string> = {
+  "image/png": "png",
+  "image/jpeg": "jpg",
+  "image/webp": "webp",
+  "image/gif": "gif",
+};
+
+/**
+ * Adds a client-generated image (rasterized game-icons.net icon, Font Awesome
+ * glyph, ...) to the scene. Unlike `addImageToScene()`, this does NOT go through
+ * `buildImage()` + `addItems()`: Owlbear's scene items only accept real http(s)
+ * image URLs (found by trial and error - a `data:` URL builds fine locally but
+ * fails to render with "Unable to fetch image: Invalid URL" once synced, since
+ * other players' clients need an actual URL to fetch, not bytes that only exist
+ * in this browser's memory). `OBR.assets.uploadImages()` is the SDK's own way to
+ * hand it a real Blob instead: Owlbear hosts it and lets the player click on the
+ * scene to place it - the same flow as dragging a file in from your computer, so
+ * there's no `position` to pass here.
+ *
+ * `blob` must be a raster format (PNG/JPEG/WebP/GIF) - Owlbear's own upload
+ * validation rejects SVG outright ("Unsupported file type", also found by trial
+ * and error), so any client-generated SVG needs rasterizing first (see
+ * `svgToPngBlob()` in utils.ts) before it ever reaches this function.
+ */
+export async function uploadImageToScene(
+  blob: Blob,
+  options: { name: string; size: number; typeHint?: ImageAssetType },
+): Promise<void> {
+  debugLog("uploadImageToScene: blob type =", blob.type, "size =", blob.size, "bytes; options =", options);
+  const ext = EXT_FROM_MIME[blob.type] ?? "png";
+  const file = new File([blob], `${options.name}.${ext}`, { type: blob.type });
+  const upload = buildImageUpload(file)
+    .name(options.name)
+    .dpi(options.size)
+    .offset({ x: options.size / 2, y: options.size / 2 })
+    .build();
+  debugLog("uploadImageToScene: calling OBR.assets.uploadImages, typeHint =", options.typeHint);
+  try {
+    await OBR.assets.uploadImages([upload], options.typeHint);
+    debugLog("uploadImageToScene: OBR.assets.uploadImages resolved OK");
+  } catch (e) {
+    debugLog("uploadImageToScene: OBR.assets.uploadImages THREW:", describeError(e));
+    console.error("[Moulinette] uploadImageToScene: OBR.assets.uploadImages threw", e);
+    throw e;
+  }
 }
 
 export async function getPlayerRole(): Promise<"GM" | "PLAYER"> {

@@ -22,5 +22,9 @@ export default defineConfig({
     // dev server must accept cross-origin requests while testing locally
     // (e.g. via a tunnel such as ngrok/localtunnel pointed at this port).
     cors: true,
+    // Vite rejects requests whose Host header it doesn't recognize (e.g. a
+    // tunnel's own subdomain), so each tunnel hostname used for local testing
+    // needs to be listed here explicitly.
+    allowedHosts: [],
   },
 });

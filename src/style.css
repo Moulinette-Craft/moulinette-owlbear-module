@@ -38,12 +38,20 @@ body {
   color: var(--mou-text);
   font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   font-size: 14px;
+  overflow: hidden;
 }
 
 .mou-app {
   display: flex;
   flex-direction: column;
-  height: 100%;
+  /* A pure `height: 100%` chain (html -> body -> #app -> .mou-app) only works if
+     every single ancestor - including whatever Owlbear's fullscreen modal iframe
+     itself does - resolves to a real, non-auto height. 100vh sidesteps that
+     entirely: it's anchored straight to this document's own viewport, so the
+     rest of the flex/min-height:0 chain below has an actual box to shrink
+     against instead of silently falling back to "grow to fit all content", which
+     is what was squashing/losing the results grid's row heights. */
+  height: 100vh;
 }
 
 .mou-header {
@@ -275,7 +283,6 @@ body {
   background: var(--mou-bg-card);
   border: 1px solid var(--mou-border);
   border-radius: 8px;
-  overflow: hidden;
   display: flex;
   flex-direction: column;
 }
@@ -286,6 +293,13 @@ body {
 
 .mou-thumb {
   aspect-ratio: 1 / 1;
+  /* .mou-asset is a column flexbox, and flex items shrink below their natural
+     size by default when their container is short on room - which, for an
+     aspect-ratio box, means its height (and thus the image inside, via
+     object-fit: cover) gets squashed/cropped instead of the card/grid simply
+     overflowing and scrolling like it should. Pinning this to its natural
+     height forces any space shortage to show up as scrolling instead. */
+  flex-shrink: 0;
   background: var(--mou-bg-alt);
   display: flex;
   align-items: center;
@@ -302,6 +316,12 @@ body {
 }
 
 .mou-name {
+  /* Same flex-shrink issue as .mou-thumb above: a flex item's automatic minimum
+     size collapses to 0 (rather than its content's height) whenever its own
+     overflow isn't `visible` - true here too, for the ellipsis truncation - so
+     without this, a cramped card would rather crush the name/author to
+     unreadable slivers than let the card/grid scroll. */
+  flex-shrink: 0;
   font-size: 12px;
   padding: 6px 8px 0;
   white-space: nowrap;
@@ -310,6 +330,7 @@ body {
 }
 
 .mou-creator {
+  flex-shrink: 0;
   font-size: 11px;
   color: var(--mou-text-dim);
   padding: 0 8px;

@@ -2,12 +2,17 @@ import OBR from "@owlbear-rodeo/sdk";
 import { AssetType, MediaAsset, MediaCollection, SearchFilters } from "../types";
 import { CloudCollection } from "../collections/cloud";
 import { GameIconsCollection } from "../collections/gameicons";
-import { FontAwesomeCollection } from "../collections/fontawesome";
-import { BBCSoundsCollection } from "../collections/bbcsounds";
+// Font Awesome and BBC Sound Effects are temporarily disabled (not removed - the
+// collection files are untouched, just not registered below) at the user's
+// request, to keep the surface area small while debugging. Re-enable by
+// uncommenting the imports and the two entries in the constructor below.
+// import { FontAwesomeCollection } from "../collections/fontawesome";
+// import { BBCSoundsCollection } from "../collections/bbcsounds";
 import { Auth } from "../auth";
 import { getAdvancedSettings, setAdvancedSettings } from "../storage";
 import { debounce, escapeHtml, prettyNumber } from "../utils";
 import { MODAL_ID } from "../constants";
+import { debugLog, describeError } from "../debug";
 
 const TYPE_LABELS: Record<AssetType, { label: string; icon: string }> = {
   [AssetType.Map]: { label: "Maps", icon: "fa-solid fa-map" },
@@ -33,7 +38,7 @@ export class MoulinetteBrowser {
   constructor(root: HTMLElement) {
     this.root = root;
     this.cloudCollection = new CloudCollection();
-    this.collections = [this.cloudCollection, new GameIconsCollection(), new FontAwesomeCollection(), new BBCSoundsCollection()];
+    this.collections = [this.cloudCollection, new GameIconsCollection()];
     this.collection = this.collections[0];
     this.filters.type = this.collection.supportedTypes[0];
   }
@@ -67,7 +72,7 @@ export class MoulinetteBrowser {
               <div id="mou-types" class="mou-radio-list"></div>
             </section>
             <section class="mou-filter-group" id="mou-facets"></section>
-            <section class="mou-filter-group mou-advanced">
+            <section class="mou-filter-group mou-advanced" id="mou-advanced-section">
               <h2>Advanced settings</h2>
               <div id="mou-advanced"></div>
             </section>
@@ -265,13 +270,19 @@ export class MoulinetteBrowser {
   }
 
   private renderAdvancedSettings(): void {
+    // The icon color/background settings only affect collections that generate
+    // (and recolor) their own icon images client-side - Moulinette Cloud has
+    // nothing to do with them.
+    const section = this.el("#mou-advanced-section");
+    if (!this.collection.supportsType(AssetType.Icon)) {
+      section.hidden = true;
+      return;
+    }
+    section.hidden = false;
+
     const settings = getAdvancedSettings();
     const container = this.el("#mou-advanced");
     container.innerHTML = `
-      <label class="mou-field">
-        Source pixels / cell
-        <input id="mou-adv-pxcell" type="number" min="10" step="10" value="${settings.image.sourcePixelsPerCell}" />
-      </label>
       <label class="mou-field">
         Icon color
         <input id="mou-adv-fg" type="color" value="${settings.image.fgColor}" />
@@ -281,13 +292,8 @@ export class MoulinetteBrowser {
         Icon background
         <input id="mou-adv-bg" type="color" value="${settings.image.bgColor || "#000000"}" ${settings.image.bgColor ? "" : "disabled"} />
       </label>
-      <p class="mou-hint">Used when adding a map/image to the scene, and when recoloring game-icons.net icons.</p>
+      <p class="mou-hint">Used when recoloring game-icons.net icons.</p>
     `;
-    this.el<HTMLInputElement>("#mou-adv-pxcell").addEventListener("change", (e) => {
-      const s = getAdvancedSettings();
-      s.image.sourcePixelsPerCell = Number((e.target as HTMLInputElement).value) || 100;
-      setAdvancedSettings(s);
-    });
     this.el<HTMLInputElement>("#mou-adv-fg").addEventListener("input", (e) => {
       const s = getAdvancedSettings();
       s.image.fgColor = (e.target as HTMLInputElement).value;
@@ -321,6 +327,7 @@ export class MoulinetteBrowser {
     this.filters.pack = "";
     if (!initial) this.renderCollectionsList();
     this.renderTypesList();
+    this.renderAdvancedSettings();
     await this.runSearch();
   }
 
@@ -493,14 +500,31 @@ export class MoulinetteBrowser {
       return;
     }
 
+    debugLog("handleAction: click", actionId, "on", asset, "(collection:", this.collection.id + ")");
     button.disabled = true;
     const icon = button.querySelector("i");
     const originalClass = icon?.className;
     if (icon) icon.className = "fa-solid fa-spinner fa-spin";
     try {
       await this.collection.executeAction(actionId, asset);
+      debugLog("handleAction: executeAction resolved for", actionId);
+      // "add" either places the item straight away (Moulinette Cloud, at the
+      // viewport's center) or hands off to Owlbear's own click-to-place flow
+      // (game-icons/Font Awesome, via OBR.assets.uploadImages) - either way the
+      // scene itself needs to be visible for the user to see the result or click
+      // on it, which this fullscreen modal is currently covering entirely.
+      //
+      // TEMPORARILY DISABLED while debugging "Add to scene": closing the modal
+      // would also tear down the on-screen debug panel before it can be read.
+      // Re-enable once the game-icons issue is fixed.
+      // if (actionId === "add") {
+      //   debugLog("handleAction: closing modal after add");
+      //   this.close();
+      //   return;
+      // }
     } catch (e) {
-      console.error("Moulinette | Action failed", actionId, e);
+      debugLog("handleAction: action FAILED", actionId, describeError(e));
+      console.error("[Moulinette] handleAction: action failed", actionId, e);
       if (typeof OBR !== "undefined") {
         OBR.notification.show("Moulinette: action failed - see console for details.", "ERROR");
       }

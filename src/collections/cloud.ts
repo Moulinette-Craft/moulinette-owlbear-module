@@ -3,6 +3,8 @@ import { MoulinetteClient } from "../clients/moulinette";
 import { AssetAction, AssetType, Facet, MediaAsset, MediaCollection, SearchFilters, SearchResults } from "../types";
 import { matchesSearchTerm, prettyDuration, prettyFilesize, prettyMediaName } from "../utils";
 import { addImageToScene } from "../obr/scene";
+import { debugLog, describeError } from "../debug";
+import { getSessionId } from "../storage";
 
 // Asset type ids used by the Moulinette Cloud API (shared with the FoundryVTT
 // module's MouCollectionAssetTypeEnum). Only the ones with a real Owlbear
@@ -15,36 +17,56 @@ const RAW_TYPE_TO_ASSET_TYPE: Record<number, AssetType> = {
   7: AssetType.Audio,
 };
 
+interface RawPack {
+  name: string;
+  path: string;
+  creator_ref: string;
+  creator: string;
+  sas?: string;
+}
+
+// `/all-assets` returns assets and packs as two separate flat lists - each raw
+// asset only carries a `pack_ref` id, not the pack's own details (name, path,
+// creator, sas token, ...). Found by trial and error after every single asset
+// was coming back with no resolvable pack: this enrichment step (looking up
+// `packs[a.pack_ref]` and attaching it, mirroring the FoundryVTT module) has to
+// run before `toMediaAsset()` can use `raw.pack` at all.
 interface RawAsset {
-  _id: string;
+  _id: string | number;
   filepath: string;
   type: number;
   perms: number;
   filesize: number;
-  thumb?: string;
   name?: string;
   creator_url?: string;
-  pack_ref: string;
-  pack: { name: string; path: string; creator_ref: string; creator: string; sas?: string };
+  pack_ref: string | number;
+  pack?: RawPack;
   size?: { width: number; height: number };
   audio?: { duration: number };
 }
 
+function enrichWithPacks(assets: RawAsset[], packs: Record<string, RawPack>): RawAsset[] {
+  return assets.map((a) => ({ ...a, pack: packs[String(a.pack_ref)] }));
+}
+
 function toMediaAsset(raw: RawAsset): MediaAsset | null {
   const type = RAW_TYPE_TO_ASSET_TYPE[raw.type];
-  // A handful of records in `/all-assets` come back with no resolvable pack (seen
-  // in practice, cause unconfirmed) - skip just that one record rather than
-  // letting it throw and abort mapping the entire (otherwise valid) asset list.
+  // A handful of records in `/all-assets` come back referencing a pack_ref with
+  // no matching entry in `packs` (seen in practice, cause unconfirmed) - skip
+  // just that one record rather than letting it throw and abort mapping the
+  // entire (otherwise valid) asset list.
   if (!type || !raw.pack) return null;
 
   const basePath = raw.filepath.replace(/\.[^/.]+$/, "");
-  let previewUrl =
+  // Every asset `/all-assets` returns is already one this session can access,
+  // so (unlike the FoundryVTT module, which also has to render locked preview
+  // thumbnails for assets requiring membership) the "real" thumbnail always
+  // applies - `_thumb.webp` isn't a field the server sends either, it's a
+  // filename convention built from the pack's SAS token the same way.
+  const previewUrl =
     type === AssetType.Audio
       ? `${MOU_STORAGE_PUB}${raw.pack.creator_ref}/${raw.pack.path}/${basePath}.ogg`
-      : `${MOU_STORAGE_PUB}${raw.pack.creator_ref}/${raw.pack.path}/${basePath}.webp`;
-  if (type !== AssetType.Audio && raw.thumb) {
-    previewUrl = `${MOU_STORAGE}${raw.pack.creator_ref}/${raw.pack.path}/${raw.thumb}`;
-  }
+      : `${MOU_STORAGE}${raw.pack.creator_ref}/${raw.pack.path}/${basePath}_thumb.webp?${raw.pack.sas ?? ""}`;
 
   const meta: MediaAsset["meta"] = [];
   if (type === AssetType.Audio && raw.audio) {
@@ -60,7 +82,7 @@ function toMediaAsset(raw: RawAsset): MediaAsset | null {
   meta.push({ icon: "fa-regular fa-weight-hanging", text: prettyFilesize(raw.filesize, 0), hint: "File size" });
 
   return {
-    id: raw._id,
+    id: String(raw._id),
     type,
     name: raw.name && raw.name.length > 0 ? raw.name : prettyMediaName(raw.filepath),
     url: raw.filepath,
@@ -68,7 +90,7 @@ function toMediaAsset(raw: RawAsset): MediaAsset | null {
     creator: raw.pack.creator,
     creatorUrl: raw.creator_url ?? null,
     pack: raw.pack.name,
-    packId: raw.pack_ref,
+    packId: String(raw.pack_ref),
     width: raw.size?.width,
     height: raw.size?.height,
     meta,
@@ -80,22 +102,55 @@ function toMediaAsset(raw: RawAsset): MediaAsset | null {
 export class CloudCollection implements MediaCollection {
   id = "moulinette-cloud";
   name = "Moulinette Cloud";
-  description =
-    "Your own content and content from creators you support on Moulinette - maps, images and sound effects.";
-  supportedTypes = [AssetType.Map, AssetType.Image, AssetType.Audio];
+  description = "Your own content and content from creators you support on Moulinette - maps and images.";
+  // Audio is temporarily disabled (not removed - see the Audio-specific code
+  // still further down this file, e.g. getPlaybackUrl()) at the user's request,
+  // to keep the surface area small while iterating. Re-enable by adding
+  // AssetType.Audio back here.
+  supportedTypes = [AssetType.Map, AssetType.Image];
 
   private assets: MediaAsset[] = [];
   private error: string | null = null;
   private initialized = false;
+  // The bulk /all-assets response can be well over 100MB for an account with a
+  // lot of accessible packs, taking several seconds - `runSearch()` calls
+  // `initialize()` on every search (needed so connecting/disconnecting the
+  // account, which calls invalidate(), refetches), and without this guard,
+  // typing into the search box while that first fetch is still in flight
+  // (`this.initialized` not yet true) fires a second, fully redundant fetch of
+  // the same huge payload. This makes every caller share the one in-flight
+  // fetch instead.
+  private initPromise: Promise<void> | null = null;
 
   async initialize(): Promise<void> {
     if (this.initialized) return;
+    if (!this.initPromise) {
+      this.initPromise = this.doInitialize().finally(() => {
+        this.initPromise = null;
+      });
+    } else {
+      debugLog("CloudCollection.initialize: fetch already in flight, awaiting it instead of starting another");
+    }
+    return this.initPromise;
+  }
+
+  private async doInitialize(): Promise<void> {
     this.error = null;
     try {
-      const { assets } = await MoulinetteClient.getAllAssets();
-      this.assets = assets.map(toMediaAsset).filter((a): a is MediaAsset => a !== null);
+      debugLog("CloudCollection.initialize: fetching /all-assets, session =", getSessionId());
+      const { assets, packs } = await MoulinetteClient.getAllAssets();
+      debugLog("CloudCollection.initialize: raw assets received:", assets.length, "; packs received:", Object.keys(packs ?? {}).length);
+
+      const rawTypeCounts = new Map<number, number>();
+      for (const a of assets) rawTypeCounts.set(a.type, (rawTypeCounts.get(a.type) ?? 0) + 1);
+      debugLog("CloudCollection.initialize: raw asset type counts:", Object.fromEntries(rawTypeCounts));
+
+      const enriched = enrichWithPacks(assets, packs ?? {});
+      this.assets = enriched.map(toMediaAsset).filter((a): a is MediaAsset => a !== null);
+      debugLog("CloudCollection.initialize: mapped (kept) assets:", this.assets.length, "of", assets.length);
       this.initialized = true;
     } catch (e) {
+      debugLog("CloudCollection.initialize: FAILED", describeError(e));
       console.error("Moulinette | Failed to load Moulinette Cloud assets", e);
       this.error = "Could not reach Moulinette Cloud. Check your connection and try again.";
     }
@@ -138,6 +193,7 @@ export class CloudCollection implements MediaCollection {
   }
 
   async search(filters: SearchFilters, page: number, pageSize = PAGE_SIZE): Promise<SearchResults> {
+    debugLog("CloudCollection.search: filters =", filters, "page =", page, "total assets in memory =", this.assets.length);
     const withoutCreatorPack = { ...filters, creator: "", pack: "" };
     const withoutPack = { ...filters, pack: "" };
 
@@ -170,6 +226,16 @@ export class CloudCollection implements MediaCollection {
 
     const all = this.filtered(filters);
     const assets = all.slice(page * pageSize, (page + 1) * pageSize);
+    debugLog(
+      "CloudCollection.search: matched",
+      all.length,
+      "assets for type",
+      filters.type,
+      "; type counts:",
+      Object.fromEntries(typeCounts),
+      "; returning page slice of",
+      assets.length,
+    );
 
     return {
       assets,

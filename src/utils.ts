@@ -102,6 +102,25 @@ export function loadImage(url: string): Promise<HTMLImageElement> {
   });
 }
 
+/**
+ * Rasterizes SVG source into a PNG Blob. Owlbear's `OBR.assets.uploadImages()`
+ * rejects SVG files outright ("Unsupported file type", found by trial and
+ * error) - anything generated client-side as SVG (recolored game-icons.net
+ * icons, ...) needs to go through this before it can be uploaded as a scene image.
+ */
+export async function svgToPngBlob(svg: string, size: number): Promise<Blob> {
+  const dataUrl = `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svg)))}`;
+  const img = await loadImage(dataUrl);
+  const canvas = document.createElement("canvas");
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext("2d")!;
+  ctx.drawImage(img, 0, 0, size, size);
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error("canvas.toBlob() returned null"))), "image/png");
+  });
+}
+
 export function escapeHtml(s: string): string {
   const div = document.createElement("div");
   div.textContent = s ?? "";

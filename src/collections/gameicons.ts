@@ -2,7 +2,8 @@ import { PAGE_SIZE } from "../constants";
 import { GameIconsClient } from "../clients/gameicons";
 import { AssetAction, AssetType, MediaAsset, MediaCollection, SearchFilters, SearchResults } from "../types";
 import { getAdvancedSettings } from "../storage";
-import { addImageToScene } from "../obr/scene";
+import { uploadImageToScene } from "../obr/scene";
+import { debugLog } from "../debug";
 
 export class GameIconsCollection implements MediaCollection {
   id = "gameicons";
@@ -62,7 +63,7 @@ export class GameIconsCollection implements MediaCollection {
 
   getActions(): AssetAction[] {
     return [
-      { id: "add", name: "Add to scene", icon: "fa-solid fa-file-import", primary: true },
+      { id: "add", name: "Add to scene - click on the map to place it", icon: "fa-solid fa-file-import", primary: true },
       { id: "download", name: "Download SVG", icon: "fa-solid fa-cloud-arrow-down" },
     ];
   }
@@ -71,13 +72,16 @@ export class GameIconsCollection implements MediaCollection {
     const { fgColor, bgColor } = getAdvancedSettings().image;
     switch (actionId) {
       case "add": {
-        // asset.id, not asset.url - see the doc comment on downloadRecolored().
-        const dataUrl = await GameIconsClient.downloadRecolored(asset.id, fgColor, bgColor);
-        await addImageToScene(dataUrl, { name: asset.name });
+        debugLog("GameIcons add: asset.id", asset.id, "name", asset.name, "fgColor", fgColor, "bgColor", bgColor);
+        // asset.id, not asset.url - see the doc comment on GameIconsClient.recolor().
+        const blob = await GameIconsClient.recoloredPngBlob(asset.id, fgColor, bgColor);
+        debugLog("GameIcons add: rasterized PNG blob ready, type =", blob.type, "size =", blob.size);
+        await uploadImageToScene(blob, { name: asset.name, size: GameIconsClient.ICON_SIZE, typeHint: "PROP" });
+        debugLog("GameIcons add: uploadImageToScene done");
         break;
       }
       case "download": {
-        const dataUrl = await GameIconsClient.downloadRecolored(asset.id, fgColor, bgColor);
+        const dataUrl = await GameIconsClient.recoloredDataUrl(asset.id, fgColor, bgColor);
         window.open(dataUrl, "_blank");
         break;
       }

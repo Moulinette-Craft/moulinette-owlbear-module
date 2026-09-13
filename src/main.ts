@@ -1,11 +1,16 @@
 import OBR from "@owlbear-rodeo/sdk";
 import { MoulinetteBrowser } from "./ui/browser";
+import { debugLog } from "./debug";
+
+debugLog("main.ts loaded, document.baseURI =", document.baseURI, "OBR.isAvailable =", OBR.isAvailable);
 
 const app = document.getElementById("app")!;
 
 OBR.onReady(async () => {
+  debugLog("OBR.onReady fired, mounting browser");
   const browser = new MoulinetteBrowser(app);
   await browser.mount();
+  debugLog("browser.mount() done");
 });
 
 // Allow opening this page directly in a normal browser tab (outside of Owlbear

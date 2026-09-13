@@ -1,4 +1,6 @@
 import { MOU_API } from "../constants";
+import { debugLog } from "../debug";
+import { svgToPngBlob } from "../utils";
 
 export interface GameIcon {
   id: string; // e.g. "1x1/faithtoken/dragon-head"
@@ -56,22 +58,24 @@ export const GameIconsClient = {
   /**
    * Downloads the icon's raw SVG (through Moulinette's public relay, since
    * game-icons.net doesn't allow cross-origin fetches directly) and recolors it,
-   * returning a `data:` URL - no server-side storage needed, unlike the
-   * FoundryVTT module which uploads the recolored file to Foundry's own file server.
+   * returning the resulting SVG source as plain text.
    *
    * @param iconId - The icon's *id* (e.g. "1x1/faithtoken/dragon-head", i.e.
    * `GameIcon.id`, not `GameIcon.url`). Despite the relay's own field being named
    * "url", found by trial and error that it actually expects this bare id and
    * 400s on the full https://game-icons.net/... URL.
    */
-  async downloadRecolored(iconId: string, fgColor: string, bgColor: string): Promise<string> {
+  async recolor(iconId: string, fgColor: string, bgColor: string): Promise<string> {
+    debugLog("GameIconsClient.recolor: POST", `${MOU_API}/gameicons/download`, "body:", { url: iconId });
     const response = await fetch(`${MOU_API}/gameicons/download`, {
       method: "POST",
       headers: { Accept: "application/json", "Content-Type": "application/json" },
       body: JSON.stringify({ url: iconId }),
     });
+    debugLog("GameIconsClient.recolor: response status", response.status);
     if (!response.ok) throw new Error(`Failed to download icon: HTTP ${response.status}`);
     let svg = await response.text();
+    debugLog("GameIconsClient.recolor: raw svg (first 150 chars):", svg.slice(0, 150));
 
     if (fgColor.toLowerCase() !== "#ffffff" || bgColor) {
       const fg = fgColor || "#000000";
@@ -79,8 +83,28 @@ export const GameIconsClient = {
       svg = svg.replace(`fill="#fff"`, `fill="${fg}"`).replace("<path d=", `<path fill="${bg}" d=`);
     }
     // Firefox needs explicit intrinsic dimensions to rasterize the SVG at a sane size.
-    svg = svg.replace("<svg", `<svg width="512" height="512"`);
+    svg = svg.replace("<svg", `<svg width="${GameIconsClient.ICON_SIZE}" height="${GameIconsClient.ICON_SIZE}"`);
+    debugLog("GameIconsClient.recolor: final svg (first 150 chars):", svg.slice(0, 150));
 
+    return svg;
+  },
+
+  /** Size (in px) baked into the recolored SVG by `recolor()` above. */
+  ICON_SIZE: 512,
+
+  /** As a `data:` URL - only good for a thumbnail preview or a "save as" link, never for a scene item (see uploadImageToScene()). */
+  async recoloredDataUrl(iconId: string, fgColor: string, bgColor: string): Promise<string> {
+    const svg = await GameIconsClient.recolor(iconId, fgColor, bgColor);
     return `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svg)))}`;
+  },
+
+  /**
+   * As a PNG Blob, suitable for `OBR.assets.uploadImages()` / `uploadImageToScene()`.
+   * Owlbear rejects SVG uploads outright ("Unsupported file type"), so the
+   * recolored SVG is rasterized to PNG first - see `svgToPngBlob()`.
+   */
+  async recoloredPngBlob(iconId: string, fgColor: string, bgColor: string): Promise<Blob> {
+    const svg = await GameIconsClient.recolor(iconId, fgColor, bgColor);
+    return svgToPngBlob(svg, GameIconsClient.ICON_SIZE);
   },
 };
