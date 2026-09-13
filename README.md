@@ -38,7 +38,10 @@ a focused subset rather than a 1:1 port. Compared to the FoundryVTT module:
 ## Project layout
 
 ```
-public/manifest.json   Extension manifest (name, icon, toolbar action)
+public/manifest.json   Extension manifest (name, icon, toolbar action) -
+                        Owlbear caps "description" at 128 characters (undocumented
+                        on the reference page at the time of writing, found by
+                        trial and error) - keep it short if you touch it
 public/data/fa-icons.json  Bundled Font Awesome Free icon list
 action.html / src/action.ts   Tiny page behind the toolbar icon; immediately opens
                                the real UI as a fullscreen modal (Owlbear's toolbar
@@ -72,12 +75,22 @@ choice (GitHub Pages, Vercel, Cloudflare Pages, your own moulinette.cloud
 infrastructure, ...) and point the extension's manifest URL at
 `https://<your-host>/manifest.json`.
 
-Every path the app references (the manifest's `icon`/`action.popover`, the modal URL
-in `src/action.ts`, the Font Awesome data file) is **relative**, resolved against
-wherever the page/manifest itself was loaded from - so it works both at a domain
-root (`https://owlbear.moulinette.cloud/`) and under a subpath
-(`https://<user>.github.io/moulinette-owlbear-module/`), with nothing to adjust
-either way.
+Every path the extension's own *pages* reference at runtime (the modal URL opened
+from `src/action.ts`, the Font Awesome data file fetched in
+`src/collections/fontawesome.ts`) is relative, resolved against wherever that page
+was actually loaded from - no adjustment needed whether hosted at a domain root or
+under a subpath.
+
+The **manifest's own** `icon`/`action.icon`/`action.popover` fields are a different
+story: found by trial and error, Owlbear resolves those against the *origin* of
+wherever the manifest was fetched from (scheme+host), not against the folder the
+manifest itself lives in - a relative value there (`"icon.svg"`) silently breaks
+under a subpath deployment (GitHub Pages project sites included), producing
+something like `https://user.github.ioicon.svg` instead of
+`https://user.github.io/repo/icon.svg`. So these three fields are set to **full,
+absolute URLs** in `public/manifest.json` instead. That does mean: if you move
+hosting (custom domain, different provider, renamed repo, ...), update those three
+URLs in `public/manifest.json` to match, then redeploy.
 
 ## Hosting on GitHub Pages
 
@@ -93,9 +106,10 @@ setup, once the repo is pushed to GitHub:
 3. Use `<that URL>manifest.json` as the extension's install URL in Owlbear Rodeo.
 
 To serve it from a nicer URL later (e.g. `owlbear.moulinette.cloud`) instead of the
-`github.io` subpath, add a **Custom domain** in the same Pages settings screen and
-point a DNS `CNAME` record for that subdomain at `<user-or-org>.github.io` - no code
-change needed on this end, since every path is already relative.
+`github.io` subpath, add a **Custom domain** in the same Pages settings screen, point
+a DNS `CNAME` record for that subdomain at `<user-or-org>.github.io`, and update the
+three absolute URLs in `public/manifest.json` (see above) to the new domain before
+redeploying - then re-add the extension in Owlbear with the new manifest URL.
 
 ## License
 

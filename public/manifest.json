@@ -4,11 +4,11 @@
   "manifest_version": 1,
   "author": "Sven Werlen",
   "description": "Search, preview and drop maps, images, icons and sound effects from Moulinette Cloud.",
-  "icon": "icon.svg",
+  "icon": "https://moulinette-craft.github.io/moulinette-owlbear-module/icon.svg",
   "action": {
     "title": "Moulinette Media Search",
-    "icon": "icon.svg",
-    "popover": "action.html",
+    "icon": "https://moulinette-craft.github.io/moulinette-owlbear-module/icon.svg",
+    "popover": "https://moulinette-craft.github.io/moulinette-owlbear-module/action.html",
     "height": 1,
     "width": 1
   }
