@@ -1,0 +1,359 @@
+:root {
+  --mou-bg: #1b1d22;
+  --mou-bg-alt: #24262d;
+  --mou-bg-card: #2b2e37;
+  --mou-border: #3a3d47;
+  --mou-text: #e7e8ec;
+  --mou-text-dim: #9a9ca6;
+  --mou-accent: #e87209;
+  --mou-accent-contrast: #1b1d22;
+  --mou-danger: #e0554f;
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --mou-bg: #f4f4f6;
+    --mou-bg-alt: #ffffff;
+    --mou-bg-card: #ffffff;
+    --mou-border: #dcdde2;
+    --mou-text: #1b1d22;
+    --mou-text-dim: #6b6d76;
+    --mou-accent-contrast: #ffffff;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--mou-bg);
+  color: var(--mou-text);
+  font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-size: 14px;
+}
+
+.mou-app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.mou-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  background: var(--mou-bg-alt);
+  border-bottom: 1px solid var(--mou-border);
+  flex: 0 0 auto;
+}
+
+.mou-brand {
+  font-weight: 600;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mou-logo {
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  background: var(--mou-accent);
+  display: inline-block;
+}
+
+.mou-account {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mou-account-loading,
+.mou-account-name {
+  color: var(--mou-text-dim);
+  font-size: 13px;
+}
+
+.mou-patron {
+  color: var(--mou-accent);
+}
+
+.mou-btn {
+  background: var(--mou-bg-card);
+  border: 1px solid var(--mou-border);
+  color: var(--mou-text);
+  border-radius: 6px;
+  padding: 6px 10px;
+  cursor: pointer;
+  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.mou-btn:hover {
+  border-color: var(--mou-accent);
+}
+
+.mou-body {
+  flex: 1 1 auto;
+  display: flex;
+  min-height: 0;
+}
+
+.mou-sidebar {
+  width: 240px;
+  flex: 0 0 auto;
+  background: var(--mou-bg-alt);
+  border-right: 1px solid var(--mou-border);
+  overflow-y: auto;
+  padding: 12px;
+}
+
+.mou-filter-group {
+  margin-bottom: 18px;
+}
+
+.mou-filter-group h2 {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--mou-text-dim);
+  margin: 0 0 8px;
+}
+
+.mou-radio-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.mou-radio {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.mou-radio:hover {
+  background: var(--mou-bg-card);
+}
+
+.mou-filter-group select {
+  width: 100%;
+  margin-bottom: 6px;
+  background: var(--mou-bg-card);
+  color: var(--mou-text);
+  border: 1px solid var(--mou-border);
+  border-radius: 4px;
+  padding: 5px;
+}
+
+.mou-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--mou-text-dim);
+  margin-bottom: 8px;
+}
+
+.mou-field.mou-checkbox {
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+}
+
+.mou-hint {
+  font-size: 11px;
+  color: var(--mou-text-dim);
+  margin-top: 4px;
+}
+
+.mou-content {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.mou-search-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--mou-border);
+}
+
+.mou-search-bar input[type="search"] {
+  flex: 1 1 auto;
+  background: var(--mou-bg-card);
+  border: 1px solid var(--mou-border);
+  color: var(--mou-text);
+  border-radius: 6px;
+  padding: 7px 10px;
+}
+
+.mou-wholeword {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--mou-text-dim);
+  white-space: nowrap;
+}
+
+.mou-count {
+  font-size: 12px;
+  color: var(--mou-text-dim);
+  white-space: nowrap;
+}
+
+.mou-error {
+  margin: 10px 16px 0;
+  padding: 8px 12px;
+  background: rgba(224, 85, 79, 0.15);
+  border: 1px solid var(--mou-danger);
+  color: var(--mou-danger);
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.mou-results {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 12px;
+  padding: 16px;
+  align-content: start;
+}
+
+.mou-empty {
+  grid-column: 1 / -1;
+  text-align: center;
+  color: var(--mou-text-dim);
+  padding: 40px 0;
+}
+
+.mou-sentinel {
+  height: 1px;
+}
+
+.mou-asset {
+  background: var(--mou-bg-card);
+  border: 1px solid var(--mou-border);
+  border-radius: 8px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.mou-asset.mou-playing {
+  border-color: var(--mou-accent);
+}
+
+.mou-thumb {
+  aspect-ratio: 1 / 1;
+  background: var(--mou-bg-alt);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  font-size: 40px;
+  color: var(--mou-text-dim);
+}
+
+.mou-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.mou-name {
+  font-size: 12px;
+  padding: 6px 8px 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mou-creator {
+  font-size: 11px;
+  color: var(--mou-text-dim);
+  padding: 0 8px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mou-meta {
+  display: flex;
+  gap: 8px;
+  padding: 2px 8px;
+  font-size: 11px;
+  color: var(--mou-text-dim);
+}
+
+.mou-actions {
+  display: flex;
+  gap: 4px;
+  padding: 6px 8px 8px;
+  margin-top: auto;
+}
+
+.mou-action-btn {
+  flex: 1 1 auto;
+  background: var(--mou-bg-alt);
+  border: 1px solid var(--mou-border);
+  color: var(--mou-text);
+  border-radius: 4px;
+  padding: 5px 0;
+  cursor: pointer;
+}
+
+.mou-action-btn:hover {
+  border-color: var(--mou-accent);
+  color: var(--mou-accent);
+}
+
+.mou-action-btn.primary {
+  background: var(--mou-accent);
+  border-color: var(--mou-accent);
+  color: var(--mou-accent-contrast);
+}
+
+.mou-action-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.mou-lightbox {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  cursor: zoom-out;
+}
+
+.mou-lightbox img {
+  max-width: 90vw;
+  max-height: 90vh;
+  border-radius: 4px;
+}

@@ -1,0 +1,21 @@
+{
+  "name": "moulinette-owlbear-module",
+  "version": "0.1.0",
+  "description": "Moulinette Media Search - Owlbear Rodeo extension",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@owlbear-rodeo/sdk": "^3.1.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3",
+    "vite": "^7.1.6"
+  }
+}

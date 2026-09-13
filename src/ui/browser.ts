@@ -1,0 +1,530 @@
+import OBR from "@owlbear-rodeo/sdk";
+import { AssetType, MediaAsset, MediaCollection, SearchFilters } from "../types";
+import { CloudCollection } from "../collections/cloud";
+import { GameIconsCollection } from "../collections/gameicons";
+import { FontAwesomeCollection } from "../collections/fontawesome";
+import { BBCSoundsCollection } from "../collections/bbcsounds";
+import { Auth } from "../auth";
+import { getAdvancedSettings, setAdvancedSettings } from "../storage";
+import { debounce, escapeHtml, prettyNumber } from "../utils";
+
+const TYPE_LABELS: Record<AssetType, { label: string; icon: string }> = {
+  [AssetType.Map]: { label: "Maps", icon: "fa-solid fa-map" },
+  [AssetType.Image]: { label: "Images", icon: "fa-solid fa-image" },
+  [AssetType.Icon]: { label: "Icons", icon: "fa-solid fa-icons" },
+  [AssetType.Audio]: { label: "Sounds", icon: "fa-solid fa-music" },
+};
+
+export class MoulinetteBrowser {
+  private root: HTMLElement;
+  private collections: MediaCollection[];
+  private cloudCollection: CloudCollection;
+  private collection: MediaCollection;
+  private filters: SearchFilters = { searchTerms: "", wholeWord: false, type: AssetType.Map, creator: "", pack: "" };
+  private page = 0;
+  private loadedAssets: MediaAsset[] = [];
+  private totalCount = 0;
+  private loading = false;
+  private noMore = false;
+  private observer?: IntersectionObserver;
+  private currentAudioAssetId: string | null = null;
+
+  constructor(root: HTMLElement) {
+    this.root = root;
+    this.cloudCollection = new CloudCollection();
+    this.collections = [this.cloudCollection, new GameIconsCollection(), new FontAwesomeCollection(), new BBCSoundsCollection()];
+    this.collection = this.collections[0];
+    this.filters.type = this.collection.supportedTypes[0];
+  }
+
+  async mount(): Promise<void> {
+    this.renderShell();
+    await this.refreshAccountWidget();
+    await this.selectCollection(this.collections[0].id, /*initial*/ true);
+  }
+
+  // ---------------------------------------------------------------- shell --
+
+  private renderShell(): void {
+    this.root.innerHTML = `
+      <div class="mou-app">
+        <header class="mou-header">
+          <div class="mou-brand"><span class="mou-logo"></span> Moulinette Media Search</div>
+          <div class="mou-account" id="mou-account"></div>
+        </header>
+        <div class="mou-body">
+          <aside class="mou-sidebar">
+            <section class="mou-filter-group">
+              <h2>Source</h2>
+              <div id="mou-collections" class="mou-radio-list"></div>
+            </section>
+            <section class="mou-filter-group">
+              <h2>Type</h2>
+              <div id="mou-types" class="mou-radio-list"></div>
+            </section>
+            <section class="mou-filter-group" id="mou-facets"></section>
+            <section class="mou-filter-group mou-advanced">
+              <h2>Advanced settings</h2>
+              <div id="mou-advanced"></div>
+            </section>
+          </aside>
+          <main class="mou-content">
+            <div class="mou-search-bar">
+              <i class="fa-solid fa-magnifying-glass"></i>
+              <input id="mou-search" type="search" placeholder="Search…" autocomplete="off" />
+              <label class="mou-wholeword" title="Match whole words only">
+                <input id="mou-wholeword" type="checkbox" /> Whole word
+              </label>
+              <span class="mou-count" id="mou-count"></span>
+            </div>
+            <div class="mou-error" id="mou-error" hidden></div>
+            <div class="mou-results" id="mou-results"></div>
+            <div class="mou-sentinel" id="mou-sentinel"></div>
+          </main>
+        </div>
+        <audio id="mou-audio"></audio>
+      </div>
+    `;
+
+    const search = this.el<HTMLInputElement>("#mou-search");
+    const performSearch = () => {
+      this.filters.searchTerms = search.value;
+      this.runSearch();
+    };
+    search.addEventListener("input", debounce(performSearch, 500));
+    search.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") performSearch();
+    });
+
+    this.el<HTMLInputElement>("#mou-wholeword").addEventListener("change", (e) => {
+      this.filters.wholeWord = (e.target as HTMLInputElement).checked;
+      this.runSearch();
+    });
+
+    this.observer = new IntersectionObserver((entries) => {
+      if (entries.some((e) => e.isIntersecting)) this.loadMore();
+    });
+    this.observer.observe(this.el("#mou-sentinel"));
+
+    this.renderCollectionsList();
+    this.renderAdvancedSettings();
+
+    const audio = this.el<HTMLAudioElement>("#mou-audio");
+    audio.addEventListener("ended", () => {
+      this.currentAudioAssetId = null;
+      this.updatePlayButtons();
+    });
+  }
+
+  private el<T extends HTMLElement = HTMLElement>(selector: string): T {
+    return this.root.querySelector(selector) as T;
+  }
+
+  // ------------------------------------------------------------ account --
+
+  private async refreshAccountWidget(): Promise<void> {
+    const container = this.el("#mou-account");
+    if (!Auth.isConnected()) {
+      container.innerHTML = `
+        <button class="mou-btn mou-connect" data-source="patreon"><i class="fa-brands fa-patreon"></i> Connect Patreon</button>
+        <button class="mou-btn mou-connect" data-source="discord"><i class="fa-brands fa-discord"></i> Connect Discord</button>
+      `;
+      container.querySelectorAll<HTMLButtonElement>(".mou-connect").forEach((btn) => {
+        btn.addEventListener("click", () => this.startLogin(btn.dataset.source as "patreon" | "discord"));
+      });
+      return;
+    }
+
+    container.innerHTML = `<span class="mou-account-loading">Loading account…</span>`;
+    const user = await Auth.getUser();
+    if (!user || !user.fullName) {
+      container.innerHTML = `
+        <button class="mou-btn mou-connect" data-source="patreon"><i class="fa-brands fa-patreon"></i> Connect Patreon</button>
+        <button class="mou-btn mou-connect" data-source="discord"><i class="fa-brands fa-discord"></i> Connect Discord</button>
+      `;
+      container.querySelectorAll<HTMLButtonElement>(".mou-connect").forEach((btn) => {
+        btn.addEventListener("click", () => this.startLogin(btn.dataset.source as "patreon" | "discord"));
+      });
+      return;
+    }
+
+    const status = user.patron ? `<i class="fa-solid fa-heart"></i> Patron` : user.platinum ? `<i class="fa-solid fa-heart"></i> Platinum patron` : "";
+    container.innerHTML = `
+      <span class="mou-account-name">${escapeHtml(String(user.fullName))}${status ? ` <span class="mou-patron">${status}</span>` : ""}</span>
+      <button class="mou-btn mou-logout" title="Disconnect"><i class="fa-solid fa-sign-out-alt"></i></button>
+    `;
+    container.querySelector(".mou-logout")?.addEventListener("click", () => {
+      Auth.disconnect();
+      this.cloudCollection.invalidate();
+      this.refreshAccountWidget();
+      this.runSearch();
+    });
+  }
+
+  private async startLogin(source: "patreon" | "discord"): Promise<void> {
+    const container = this.el("#mou-account");
+    container.innerHTML = `<span class="mou-account-loading">Waiting for sign-in… (<span id="mou-login-timer">120</span>s)</span>`;
+    const ok = await Auth.connect(source, (secondsLeft) => {
+      const el = this.root.querySelector("#mou-login-timer");
+      if (el) el.textContent = String(secondsLeft);
+    });
+    if (ok) {
+      this.cloudCollection.invalidate();
+    }
+    await this.refreshAccountWidget();
+    if (ok) this.runSearch();
+  }
+
+  // -------------------------------------------------------------- filters --
+
+  private renderCollectionsList(): void {
+    const container = this.el("#mou-collections");
+    container.innerHTML = this.collections
+      .map(
+        (c) => `
+        <label class="mou-radio" title="${escapeHtml(c.description)}">
+          <input type="radio" name="collection" value="${c.id}" ${c.id === this.collection.id ? "checked" : ""} />
+          ${escapeHtml(c.name)}
+        </label>`,
+      )
+      .join("");
+    container.querySelectorAll<HTMLInputElement>("input[name=collection]").forEach((input) => {
+      input.addEventListener("change", () => this.selectCollection(input.value));
+    });
+  }
+
+  private renderTypesList(): void {
+    const container = this.el("#mou-types");
+    container.innerHTML = this.collection.supportedTypes
+      .map((t) => {
+        const info = TYPE_LABELS[t];
+        return `
+        <label class="mou-radio">
+          <input type="radio" name="type" value="${t}" ${t === this.filters.type ? "checked" : ""} />
+          <i class="${info.icon}"></i> ${info.label}
+        </label>`;
+      })
+      .join("");
+    container.querySelectorAll<HTMLInputElement>("input[name=type]").forEach((input) => {
+      input.addEventListener("change", () => {
+        this.filters.type = input.value as AssetType;
+        this.filters.creator = "";
+        this.filters.pack = "";
+        this.runSearch();
+      });
+    });
+  }
+
+  private renderFacets(creators: { id: string; name: string; count: number }[], packs: { id: string; name: string; count: number }[]): void {
+    const container = this.el("#mou-facets");
+    if (creators.length === 0 && packs.length === 0) {
+      container.innerHTML = "";
+      return;
+    }
+    container.innerHTML = `
+      <h2>Filter</h2>
+      ${
+        creators.length > 0
+          ? `<select id="mou-creator"><option value="">All creators</option>${creators
+              .map((c) => `<option value="${escapeHtml(c.id)}" ${c.id === this.filters.creator ? "selected" : ""}>${escapeHtml(c.name)} (${prettyNumber(c.count, true)})</option>`)
+              .join("")}</select>`
+          : ""
+      }
+      ${
+        packs.length > 0
+          ? `<select id="mou-pack"><option value="">All packs</option>${packs
+              .map((p) => `<option value="${escapeHtml(p.id)}" ${p.id === this.filters.pack ? "selected" : ""}>${escapeHtml(p.name)} (${prettyNumber(p.count, true)})</option>`)
+              .join("")}</select>`
+          : ""
+      }
+    `;
+    this.root.querySelector("#mou-creator")?.addEventListener("change", (e) => {
+      this.filters.creator = (e.target as HTMLSelectElement).value;
+      this.filters.pack = "";
+      this.runSearch();
+    });
+    this.root.querySelector("#mou-pack")?.addEventListener("change", (e) => {
+      this.filters.pack = (e.target as HTMLSelectElement).value;
+      this.runSearch();
+    });
+  }
+
+  private renderAdvancedSettings(): void {
+    const settings = getAdvancedSettings();
+    const container = this.el("#mou-advanced");
+    container.innerHTML = `
+      <label class="mou-field">
+        Source pixels / cell
+        <input id="mou-adv-pxcell" type="number" min="10" step="10" value="${settings.image.sourcePixelsPerCell}" />
+      </label>
+      <label class="mou-field">
+        Icon color
+        <input id="mou-adv-fg" type="color" value="${settings.image.fgColor}" />
+      </label>
+      <label class="mou-field mou-checkbox">
+        <input id="mou-adv-bg-enabled" type="checkbox" ${settings.image.bgColor ? "checked" : ""} />
+        Icon background
+        <input id="mou-adv-bg" type="color" value="${settings.image.bgColor || "#000000"}" ${settings.image.bgColor ? "" : "disabled"} />
+      </label>
+      <p class="mou-hint">Used when adding a map/image to the scene, and when recoloring game-icons.net icons.</p>
+    `;
+    this.el<HTMLInputElement>("#mou-adv-pxcell").addEventListener("change", (e) => {
+      const s = getAdvancedSettings();
+      s.image.sourcePixelsPerCell = Number((e.target as HTMLInputElement).value) || 100;
+      setAdvancedSettings(s);
+    });
+    this.el<HTMLInputElement>("#mou-adv-fg").addEventListener("input", (e) => {
+      const s = getAdvancedSettings();
+      s.image.fgColor = (e.target as HTMLInputElement).value;
+      setAdvancedSettings(s);
+    });
+    const bgEnabled = this.el<HTMLInputElement>("#mou-adv-bg-enabled");
+    const bgColor = this.el<HTMLInputElement>("#mou-adv-bg");
+    bgEnabled.addEventListener("change", () => {
+      bgColor.disabled = !bgEnabled.checked;
+      const s = getAdvancedSettings();
+      s.image.bgColor = bgEnabled.checked ? bgColor.value : "";
+      setAdvancedSettings(s);
+    });
+    bgColor.addEventListener("input", () => {
+      const s = getAdvancedSettings();
+      s.image.bgColor = bgColor.value;
+      setAdvancedSettings(s);
+    });
+  }
+
+  // --------------------------------------------------------------- search --
+
+  private async selectCollection(id: string, initial = false): Promise<void> {
+    const collection = this.collections.find((c) => c.id === id);
+    if (!collection) return;
+    this.collection = collection;
+    if (!this.collection.supportedTypes.includes(this.filters.type)) {
+      this.filters.type = this.collection.supportedTypes[0];
+    }
+    this.filters.creator = "";
+    this.filters.pack = "";
+    if (!initial) this.renderCollectionsList();
+    this.renderTypesList();
+    await this.runSearch();
+  }
+
+  /**
+   * Always (re)runs `initialize()` before searching: cheap/idempotent for every
+   * collection (each guards its own one-time work), and necessary so that
+   * connecting/disconnecting the Moulinette account - which calls
+   * `CloudCollection.invalidate()` - actually refetches on the next search
+   * instead of silently searching an emptied asset list.
+   */
+  private async runSearch(): Promise<void> {
+    this.page = 0;
+    this.loadedAssets = [];
+    this.noMore = false;
+    this.el("#mou-results").innerHTML = "";
+    await this.collection.initialize();
+    this.showError(this.collection.getError());
+    await this.loadMore();
+  }
+
+  private showError(message: string | null): void {
+    const el = this.el("#mou-error");
+    if (message) {
+      el.hidden = false;
+      el.textContent = message;
+    } else {
+      el.hidden = true;
+    }
+  }
+
+  private async loadMore(): Promise<void> {
+    if (this.loading || this.noMore) return;
+    this.loading = true;
+    try {
+      const results = await this.collection.search(this.filters, this.page);
+      this.showError(this.collection.getError());
+
+      if (this.page === 0) {
+        this.totalCount = await this.collection.getAssetsCount(this.filters);
+        this.renderFacets(results.creators, results.packs);
+      }
+
+      if (results.assets.length === 0) {
+        this.noMore = true;
+        if (this.page === 0) {
+          const needsSearch = !this.collection.isBrowsable() && this.filters.searchTerms.trim().length < 3;
+          this.el("#mou-results").innerHTML = `<div class="mou-empty">${
+            needsSearch ? "Type at least 3 characters to search." : "No results found."
+          }</div>`;
+        }
+        return;
+      }
+
+      this.page++;
+      this.loadedAssets.push(...results.assets);
+      this.appendAssets(results.assets);
+      this.updateCount();
+    } catch (e) {
+      console.error("Moulinette | Search failed", e);
+      this.showError("Something went wrong while loading results.");
+      this.noMore = true;
+    } finally {
+      this.loading = false;
+    }
+  }
+
+  private updateCount(): void {
+    const el = this.el("#mou-count");
+    el.textContent = this.totalCount > 0 ? `${prettyNumber(this.loadedAssets.length, true)} / ${prettyNumber(this.totalCount, true)}` : `${prettyNumber(this.loadedAssets.length, true)}`;
+  }
+
+  // --------------------------------------------------------------- assets --
+
+  private appendAssets(assets: MediaAsset[]): void {
+    const results = this.el("#mou-results");
+    const frag = document.createDocumentFragment();
+    for (const asset of assets) {
+      frag.appendChild(this.renderAssetCard(asset));
+    }
+    results.appendChild(frag);
+  }
+
+  private renderAssetCard(asset: MediaAsset): HTMLElement {
+    const card = document.createElement("div");
+    card.className = "mou-asset";
+    card.dataset.id = asset.id;
+
+    const isAudio = asset.type === AssetType.Audio;
+
+    const thumb = document.createElement("div");
+    thumb.className = "mou-thumb";
+    if (asset.iconGlyph) {
+      // Font Awesome: rendered as a live glyph, since there's no image file to
+      // point an <img> at until "Add to scene" rasterizes one on demand.
+      const glyph = document.createElement("i");
+      glyph.className = asset.iconGlyph;
+      thumb.appendChild(glyph);
+    } else if (isAudio) {
+      thumb.innerHTML = `<i class="fa-solid fa-music"></i>`;
+    } else {
+      // A real <img>, not a CSS background, so the browser's own native drag
+      // payload (the same one used when dragging an image out of any web page)
+      // is what Owlbear Rodeo sees - it already knows how to turn that into a new
+      // image item when dropped on the canvas, no extra wiring needed here. This
+      // is an alternative to the explicit "Add to scene" button below.
+      const img = document.createElement("img");
+      img.src = asset.previewUrl;
+      img.loading = "lazy";
+      img.alt = asset.name;
+      img.draggable = true;
+      thumb.appendChild(img);
+    }
+    card.appendChild(thumb);
+
+    const name = document.createElement("div");
+    name.className = "mou-name";
+    name.title = asset.name;
+    name.textContent = asset.name;
+    card.appendChild(name);
+
+    if (asset.creator) {
+      const creator = document.createElement("div");
+      creator.className = "mou-creator";
+      creator.textContent = asset.pack ? `${asset.creator} · ${asset.pack}` : asset.creator;
+      card.appendChild(creator);
+    }
+
+    if (asset.meta.length > 0) {
+      const meta = document.createElement("div");
+      meta.className = "mou-meta";
+      meta.innerHTML = asset.meta.map((m) => `<span title="${escapeHtml(m.hint)}">${m.icon ? `<i class="${m.icon}"></i> ` : ""}${escapeHtml(m.text)}</span>`).join("");
+      card.appendChild(meta);
+    }
+
+    const actions = document.createElement("div");
+    actions.className = "mou-actions";
+    for (const action of this.collection.getActions(asset)) {
+      const btn = document.createElement("button");
+      btn.className = `mou-action-btn${action.primary ? " primary" : ""}`;
+      btn.title = action.name;
+      btn.innerHTML = `<i class="${action.icon}"></i>`;
+      btn.addEventListener("click", () => this.handleAction(action.id, asset, btn));
+      actions.appendChild(btn);
+    }
+    card.appendChild(actions);
+
+    return card;
+  }
+
+  private async handleAction(actionId: string, asset: MediaAsset, button: HTMLButtonElement): Promise<void> {
+    if (actionId === "browse-pack") {
+      if (asset.creator) this.filters.creator = asset.creator;
+      this.filters.pack = asset.packId || "";
+      this.filters.searchTerms = "";
+      this.el<HTMLInputElement>("#mou-search").value = "";
+      await this.runSearch();
+      return;
+    }
+    if (actionId === "play") {
+      button.disabled = true;
+      try {
+        await this.togglePlay(asset);
+      } finally {
+        button.disabled = false;
+      }
+      return;
+    }
+    if (actionId === "preview" && asset.type !== AssetType.Audio) {
+      this.openLightbox(asset);
+      return;
+    }
+
+    button.disabled = true;
+    const icon = button.querySelector("i");
+    const originalClass = icon?.className;
+    if (icon) icon.className = "fa-solid fa-spinner fa-spin";
+    try {
+      await this.collection.executeAction(actionId, asset);
+    } catch (e) {
+      console.error("Moulinette | Action failed", actionId, e);
+      if (typeof OBR !== "undefined") {
+        OBR.notification.show("Moulinette: action failed - see console for details.", "ERROR");
+      }
+    } finally {
+      button.disabled = false;
+      if (icon && originalClass) icon.className = originalClass;
+    }
+  }
+
+  private async togglePlay(asset: MediaAsset): Promise<void> {
+    const audio = this.el<HTMLAudioElement>("#mou-audio");
+    if (this.currentAudioAssetId === asset.id && !audio.paused) {
+      audio.pause();
+      this.currentAudioAssetId = null;
+    } else {
+      const url = this.collection.getPlaybackUrl ? await this.collection.getPlaybackUrl(asset) : asset.previewUrl;
+      audio.src = url;
+      await audio.play();
+      this.currentAudioAssetId = asset.id;
+    }
+    this.updatePlayButtons();
+  }
+
+  private updatePlayButtons(): void {
+    this.root.querySelectorAll<HTMLElement>(".mou-asset").forEach((card) => {
+      const playing = card.dataset.id === this.currentAudioAssetId;
+      card.classList.toggle("mou-playing", playing);
+    });
+  }
+
+  private openLightbox(asset: MediaAsset): void {
+    // Uses the thumbnail/preview URL rather than the full-resolution asset: for
+    // Moulinette Cloud, resolving the real download URL requires an extra signed
+    // API call (see CloudCollection.resolveDownloadUrl), which "Add to scene" and
+    // "Download" already do when actually needed.
+    const overlay = document.createElement("div");
+    overlay.className = "mou-lightbox";
+    overlay.innerHTML = `<img src="${asset.previewUrl}" alt="${escapeHtml(asset.name)}" />`;
+    overlay.addEventListener("click", () => overlay.remove());
+    document.body.appendChild(overlay);
+  }
+}
