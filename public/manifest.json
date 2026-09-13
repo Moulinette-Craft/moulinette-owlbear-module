@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "manifest_version": 1,
   "author": "Sven Werlen",
-  "description": "Search, preview and drop maps, images, icons and sound effects from Moulinette Cloud, Game-icons.net, FontAwesome and BBC Sound Effects straight onto your scene.",
+  "description": "Search, preview and drop maps, images, icons and sound effects from Moulinette Cloud, Game-icons.net, FontAwesome, etc.",
   "icon": "icon.svg",
   "action": {
     "title": "Moulinette Media Search",
