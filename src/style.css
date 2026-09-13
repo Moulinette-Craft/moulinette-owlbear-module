@@ -129,6 +129,7 @@ body {
 .mou-sidebar {
   width: 240px;
   flex: 0 0 auto;
+  min-height: 0;
   background: var(--mou-bg-alt);
   border-right: 1px solid var(--mou-border);
   overflow-y: auto;
@@ -203,6 +204,7 @@ body {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  min-height: 0;
 }
 
 .mou-search-bar {
@@ -249,6 +251,7 @@ body {
 
 .mou-results {
   flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
