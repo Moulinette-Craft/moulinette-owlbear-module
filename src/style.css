@@ -448,6 +448,9 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
+  /* Without this, max-width/max-height: 100% on the image below lets it grow
+     flush to this box's own edges - a bit of padding keeps it clear of them. */
+  padding: 32px;
   z-index: 2000;
   cursor: zoom-out;
 }
