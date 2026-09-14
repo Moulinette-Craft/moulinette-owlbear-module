@@ -73,10 +73,9 @@ body {
 }
 
 .mou-logo {
-  width: 18px;
-  height: 18px;
-  border-radius: 4px;
-  background: var(--mou-accent);
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
   display: inline-block;
 }
 
@@ -315,6 +314,27 @@ body {
   overflow: hidden;
   font-size: 28px;
   color: var(--mou-text-dim);
+  position: relative;
+}
+
+.mou-badges {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  z-index: 1;
+}
+
+.mou-badge {
+  background: rgba(10, 10, 10, 0.75);
+  color: #fff;
+  font-size: 10px;
+  line-height: 1.4;
+  padding: 2px 6px;
+  border-radius: 4px;
+  white-space: nowrap;
 }
 
 .mou-thumb img {
@@ -401,7 +421,8 @@ body {
   cursor: zoom-out;
 }
 
-.mou-lightbox img {
+.mou-lightbox img,
+.mou-lightbox video {
   max-width: 100%;
   max-height: 100%;
   object-fit: contain;

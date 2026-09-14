@@ -55,7 +55,7 @@ export class MoulinetteBrowser {
     this.root.innerHTML = `
       <div class="mou-app">
         <header class="mou-header">
-          <div class="mou-brand"><span class="mou-logo"></span> Moulinette Media Search</div>
+          <div class="mou-brand"><img class="mou-logo" src="icon.svg" alt="" /> Moulinette Media Search</div>
           <div class="mou-header-right">
             <div class="mou-account" id="mou-account"></div>
             <button class="mou-btn mou-close" id="mou-close" title="Close (Esc)"><i class="fa-solid fa-xmark"></i></button>
@@ -142,29 +142,26 @@ export class MoulinetteBrowser {
 
   // ------------------------------------------------------------ account --
 
+  private renderConnectButtons(container: HTMLElement): void {
+    // Discord sign-in is temporarily removed from the UI (not removed from
+    // auth.ts - still there to bring back with one line if wanted later).
+    container.innerHTML = `<button class="mou-btn mou-connect" data-source="patreon"><i class="fa-brands fa-patreon"></i> Connect Patreon</button>`;
+    container.querySelectorAll<HTMLButtonElement>(".mou-connect").forEach((btn) => {
+      btn.addEventListener("click", () => this.startLogin(btn.dataset.source as "patreon" | "discord"));
+    });
+  }
+
   private async refreshAccountWidget(): Promise<void> {
     const container = this.el("#mou-account");
     if (!Auth.isConnected()) {
-      container.innerHTML = `
-        <button class="mou-btn mou-connect" data-source="patreon"><i class="fa-brands fa-patreon"></i> Connect Patreon</button>
-        <button class="mou-btn mou-connect" data-source="discord"><i class="fa-brands fa-discord"></i> Connect Discord</button>
-      `;
-      container.querySelectorAll<HTMLButtonElement>(".mou-connect").forEach((btn) => {
-        btn.addEventListener("click", () => this.startLogin(btn.dataset.source as "patreon" | "discord"));
-      });
+      this.renderConnectButtons(container);
       return;
     }
 
     container.innerHTML = `<span class="mou-account-loading">Loading account…</span>`;
     const user = await Auth.getUser();
     if (!user || !user.fullName) {
-      container.innerHTML = `
-        <button class="mou-btn mou-connect" data-source="patreon"><i class="fa-brands fa-patreon"></i> Connect Patreon</button>
-        <button class="mou-btn mou-connect" data-source="discord"><i class="fa-brands fa-discord"></i> Connect Discord</button>
-      `;
-      container.querySelectorAll<HTMLButtonElement>(".mou-connect").forEach((btn) => {
-        btn.addEventListener("click", () => this.startLogin(btn.dataset.source as "patreon" | "discord"));
-      });
+      this.renderConnectButtons(container);
       return;
     }
 
@@ -444,6 +441,16 @@ export class MoulinetteBrowser {
       img.draggable = true;
       thumb.appendChild(img);
     }
+
+    // "Scene" is known immediately (from the search result itself); "Animated"
+    // can only be known by resolving the scene's actual background, so it's
+    // added asynchronously below once that resolves.
+    const badges = document.createElement("div");
+    badges.className = "mou-badges";
+    if (asset.flags.isScene) {
+      badges.appendChild(this.createBadge("fa-solid fa-layer-group", "Scene", "A full FoundryVTT scene - its background image is used here."));
+    }
+    thumb.appendChild(badges);
     card.appendChild(thumb);
 
     const name = document.createElement("div");
@@ -472,11 +479,21 @@ export class MoulinetteBrowser {
       const btn = document.createElement("button");
       btn.className = `mou-action-btn${action.primary ? " primary" : ""}`;
       btn.title = action.name;
+      btn.dataset.actionId = action.id;
       btn.innerHTML = `<i class="${action.icon}"></i>`;
       btn.addEventListener("click", () => this.handleAction(action, asset, btn));
       actions.appendChild(btn);
     }
     card.appendChild(actions);
+
+    if (asset.flags.isScene && this.collection.resolveMediaKind) {
+      this.collection.resolveMediaKind(asset).then((kind) => {
+        if (!kind?.animated) return;
+        badges.appendChild(this.createBadge("fa-solid fa-film", "Animated", "This map has a video background - it can be downloaded, but not added to the scene."));
+        // Owlbear scene images aren't video - there's nothing "add" could do here.
+        actions.querySelector('[data-action-id="add"]')?.remove();
+      });
+    }
 
     return card;
   }
@@ -579,11 +596,12 @@ export class MoulinetteBrowser {
    * disposition and just open a file-save prompt instead of rendering when their
    * URL is opened directly in a new tab. */
   private showLightbox(url: string, name: string): void {
+    const isVideo = ["mp4", "webm", "mov", "m4v"].includes(url.split("?")[0].split(".").pop()?.toLowerCase() ?? "");
     const overlay = document.createElement("div");
     overlay.className = "mou-lightbox";
     overlay.innerHTML = `
       <button class="mou-lightbox-close" title="Close (Esc)"><i class="fa-solid fa-xmark"></i></button>
-      <img src="${url}" alt="${escapeHtml(name)}" />
+      ${isVideo ? `<video src="${url}" autoplay loop muted controls></video>` : `<img src="${url}" alt="${escapeHtml(name)}" />`}
     `;
     const close = () => {
       overlay.remove();
@@ -601,5 +619,13 @@ export class MoulinetteBrowser {
     overlay.querySelector(".mou-lightbox-close")?.addEventListener("click", close);
     document.addEventListener("keydown", onKeyDown);
     document.body.appendChild(overlay);
+  }
+
+  private createBadge(icon: string, label: string, hint: string): HTMLElement {
+    const badge = document.createElement("span");
+    badge.className = "mou-badge";
+    badge.title = hint;
+    badge.innerHTML = `<i class="${icon}"></i> ${label}`;
+    return badge;
   }
 }

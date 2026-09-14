@@ -120,4 +120,15 @@ export interface MediaCollection {
    * Moulinette Cloud to resolve the real, full-resolution asset first.
    */
   getPreviewUrl?(asset: MediaAsset): Promise<string>;
+
+  /**
+   * For assets whose real underlying media can only be known by resolving them
+   * (a Moulinette Cloud "Scene" asset's map could turn out to be a video rather
+   * than an image) - called once, lazily, right after the asset's card is first
+   * rendered, so the UI can show an accurate badge and gate actions (e.g. an
+   * animated map can't be added to the scene) without paying for this
+   * resolution on every asset up front. Returns null for assets this doesn't
+   * apply to.
+   */
+  resolveMediaKind?(asset: MediaAsset): Promise<{ animated: boolean } | null>;
 }

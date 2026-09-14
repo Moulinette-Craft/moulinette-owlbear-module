@@ -7,16 +7,22 @@ import { describeError } from "../debug";
 
 // Asset type ids used by the Moulinette Cloud API (shared with the FoundryVTT
 // module's MouCollectionAssetTypeEnum). Only the ones with a real Owlbear
-// equivalent are mapped - everything else (scenes, actors, items, journals,
-// playlists, macros, roll tables, adventures, PDFs, scene-packer bundles) is
-// filtered out of the results entirely. Note that the server's own "type: 2"
-// filter bucket (asked for below whenever the UI's "Map" type is selected)
-// actually groups Scene(1)/Map(2)/ScenePacker(98) together - matching the
-// FoundryVTT module, which supports all three as "maps" - so a page of results
-// can still include a few Scene/ScenePacker records; those simply fail the
-// `RAW_TYPE_TO_ASSET_TYPE` lookup below and get dropped, same as any other
-// unsupported type.
+// equivalent are mapped - everything else (actors, items, journals, playlists,
+// macros, roll tables, adventures, PDFs, scene-packer bundles) is filtered out
+// of the results entirely.
+//
+// Scene(1) is mapped to Map on purpose: found by testing the live API directly,
+// the server's own "type: 2" filter bucket (requested below whenever the UI's
+// "Map" type is selected) always mixes Scene(1) records into a "type: 2"
+// request - there's no request parameter that returns Map without Scene, since
+// that's an intentional server-side convention (Foundry, its main client,
+// treats a Scene as just another kind of importable map). A Scene's own file is
+// a full FoundryVTT document (walls, lights, tokens - useless to Owlbear
+// directly), but resolveDownloadUrl() below extracts its background image/video
+// the same way the FoundryVTT module does, so it can still be added like any
+// other map instead of being silently dropped.
 const RAW_TYPE_TO_ASSET_TYPE: Record<number, AssetType> = {
+  1: AssetType.Map,
   2: AssetType.Map,
   3: AssetType.Image,
   7: AssetType.Audio,
@@ -90,7 +96,7 @@ function toMediaAsset(raw: RawAsset): MediaAsset | null {
     meta,
     free: raw.perms === 0,
     locked,
-    flags: {},
+    flags: { isScene: raw.type === 1 },
   };
 }
 
@@ -138,6 +144,10 @@ export class CloudCollection implements MediaCollection {
 
   private error: string | null = null;
   private cache: FacetCache = {};
+  // Tracks the server's own page index separately from the "page" the UI passes
+  // in (see search() below) - the two drift apart whenever raw pages get
+  // skipped for being entirely Scene/ScenePacker.
+  private nextRawPage = 0;
 
   async initialize(): Promise<void> {
     // Nothing to prefetch: every search hits the server directly (the
@@ -176,34 +186,58 @@ export class CloudCollection implements MediaCollection {
     const termsChanged = !hasSearched || this.cache.searchTerms !== filters.searchTerms;
     const typeChanged = termsChanged || this.cache.type !== filters.type;
     const creatorChanged = typeChanged || this.cache.creator !== filters.creator;
-    const facets = { types: typeChanged, creators: typeChanged, packs: creatorChanged };
+    let facets = { types: typeChanged, creators: typeChanged, packs: creatorChanged };
+
+    if (page === 0) this.nextRawPage = 0;
 
     try {
-      const raw = await MoulinetteClient.search({
-        searchTerms: filters.searchTerms,
-        type: ASSET_TYPE_TO_RAW_TYPE[filters.type],
-        creator: filters.creator,
-        pack: filters.pack || null,
-        wholeWord: filters.wholeWord,
-        page,
-        facets,
-      });
-      this.error = null;
+      const assets: MediaAsset[] = [];
+      // The server's "Map" bucket bundles Scene/Map/ScenePacker together (see
+      // the note on RAW_TYPE_TO_ASSET_TYPE above), so a raw page - or even every
+      // remaining raw page of a small, Scene-only pack - can filter down to zero
+      // usable assets despite the server reporting plenty of "total_assets" for
+      // it. Stopping at the first empty-after-filtering page (instead of
+      // continuing to the next raw page) was exactly the bug reported: a pack
+      // showing "20 entries" but displaying "0" as soon as its first raw page
+      // happened to be all Scene records. Keep pulling raw pages - capped, so a
+      // pathologically all-unsupported pack can't spin forever - until either
+      // some usable assets are found or the server itself has nothing left.
+      const MAX_RAW_FETCHES = 8;
+      for (let i = 0; i < MAX_RAW_FETCHES; i++) {
+        const raw = await MoulinetteClient.search({
+          searchTerms: filters.searchTerms,
+          type: ASSET_TYPE_TO_RAW_TYPE[filters.type],
+          creator: filters.creator,
+          pack: filters.pack || null,
+          wholeWord: filters.wholeWord,
+          page: this.nextRawPage,
+          facets,
+        });
+        this.nextRawPage++;
+        facets = { types: false, creators: false, packs: false }; // only ever needed once per logical search
+        this.error = null;
 
-      if (raw.types) {
-        this.cache.types = raw.types
-          .map((t: { _id: number; total_assets: number }) => ({ type: RAW_TYPE_TO_ASSET_TYPE[t._id], count: t.total_assets }))
-          .filter((t: { type?: AssetType }): t is { type: AssetType; count: number } => t.type !== undefined);
-      }
-      if (raw.creators) {
-        this.cache.creators = raw.creators.map((c: { name: string; total_assets: number }) => ({ id: c.name, name: c.name, count: c.total_assets }));
-      }
-      if (raw.packs) {
-        // The server returns packs for every creator regardless of the current
-        // filter - kept as-is (per-creator filtering happens below, since which
-        // creator is selected can change without the packs facet itself needing
-        // to be re-fetched).
-        this.cache.packs = raw.packs;
+        if (raw.types) {
+          this.cache.types = raw.types
+            .map((t: { _id: number; total_assets: number }) => ({ type: RAW_TYPE_TO_ASSET_TYPE[t._id], count: t.total_assets }))
+            .filter((t: { type?: AssetType }): t is { type: AssetType; count: number } => t.type !== undefined);
+        }
+        if (raw.creators) {
+          this.cache.creators = raw.creators.map((c: { name: string; total_assets: number }) => ({ id: c.name, name: c.name, count: c.total_assets }));
+        }
+        if (raw.packs) {
+          // The server returns packs for every creator regardless of the
+          // current filter - kept as-is (per-creator filtering happens below,
+          // since which creator is selected can change without the packs facet
+          // itself needing to be re-fetched).
+          this.cache.packs = raw.packs;
+        }
+
+        const rawAssets: RawAsset[] = raw.assets ?? [];
+        if (rawAssets.length === 0) break; // the server truly has nothing more for this filter set
+
+        assets.push(...rawAssets.map(toMediaAsset).filter((a): a is MediaAsset => a !== null));
+        if (assets.length > 0) break; // got something to show - let infinite scroll ask for more later if this page is thin
       }
 
       this.cache.searchTerms = filters.searchTerms;
@@ -211,8 +245,6 @@ export class CloudCollection implements MediaCollection {
       this.cache.creator = filters.creator;
 
       const packsForCreator = filters.creator ? mergePacks((this.cache.packs ?? []).filter((p) => p.creator === filters.creator)) : [];
-
-      const assets: MediaAsset[] = (raw.assets ?? []).map(toMediaAsset).filter((a: MediaAsset | null): a is MediaAsset => a !== null);
 
       return {
         assets,
@@ -260,6 +292,45 @@ export class CloudCollection implements MediaCollection {
     return `${full.base_url}/${full.file_url}`;
   }
 
+  private sceneBackgroundCache = new Map<string, Promise<{ url: string; isVideo: boolean } | null>>();
+
+  /**
+   * A Scene's `file_url` looks like it should be a huge FoundryVTT scene
+   * document (the asset's own `filesize` metadata says so), but what's actually
+   * served there is a tiny standalone JSON with just the background
+   * image/video reference (found by downloading one directly - a few hundred
+   * bytes, not the tens of megabytes `filesize` suggests) - `background.src`,
+   * prefixed with the same "#DEP#" placeholder the FoundryVTT module resolves
+   * against the asset's own `deps` list. Cached per asset id: this is called
+   * both eagerly (resolveMediaKind(), to badge/gate the card right after it's
+   * rendered) and again on demand (add/download/preview), and there's no
+   * reason to hit the network twice for the same asset.
+   */
+  private resolveSceneBackground(asset: MediaAsset): Promise<{ url: string; isVideo: boolean } | null> {
+    let promise = this.sceneBackgroundCache.get(asset.id);
+    if (!promise) {
+      promise = (async () => {
+        try {
+          const full = await MoulinetteClient.getAsset(asset.id);
+          const sceneUrl = `${full.base_url}/${full.file_url}`;
+          const sceneDoc = await fetch(sceneUrl).then((r) => r.json());
+          const src: string | undefined = sceneDoc?.background?.src;
+          const depFilename = src?.replace("#DEP#", "");
+          const dep: string | undefined = depFilename ? (full.deps as string[] | undefined)?.find((d) => d.startsWith(depFilename)) : undefined;
+          if (!dep) return null;
+          const ext = dep.split("?")[0].split(".").pop()?.toLowerCase();
+          const isVideo = !!ext && ["mp4", "webm", "mov", "m4v"].includes(ext);
+          return { url: `${full.base_url}/${dep}`, isVideo };
+        } catch (e) {
+          console.error("Moulinette | Failed to resolve a scene's background", describeError(e));
+          return null;
+        }
+      })();
+      this.sceneBackgroundCache.set(asset.id, promise);
+    }
+    return promise;
+  }
+
   /** Audio's `previewUrl` is only a lightweight sample clip - "Play" needs the real asset. */
   async getPlaybackUrl(asset: MediaAsset): Promise<string> {
     if (asset.type !== AssetType.Audio) return asset.previewUrl;
@@ -268,22 +339,48 @@ export class CloudCollection implements MediaCollection {
 
   /** `previewUrl` is only thumbnail quality - the in-app preview overlay wants the real, full-resolution asset. */
   async getPreviewUrl(asset: MediaAsset): Promise<string> {
+    if (asset.flags.isScene) {
+      const bg = await this.resolveSceneBackground(asset);
+      return bg?.url ?? asset.previewUrl;
+    }
     return this.resolveDownloadUrl(asset);
+  }
+
+  async resolveMediaKind(asset: MediaAsset): Promise<{ animated: boolean } | null> {
+    if (!asset.flags.isScene) return null;
+    const bg = await this.resolveSceneBackground(asset);
+    return bg ? { animated: bg.isVideo } : null;
   }
 
   async executeAction(actionId: string, asset: MediaAsset): Promise<void> {
     switch (actionId) {
       case "add": {
-        const url = await this.resolveDownloadUrl(asset);
+        let url: string;
+        if (asset.flags.isScene) {
+          const bg = await this.resolveSceneBackground(asset);
+          if (!bg) throw new Error("Could not resolve this scene's background image.");
+          if (bg.isVideo) throw new Error("Animated maps can't be added to the scene - use Download to save the video file instead.");
+          url = bg.url;
+        } else {
+          url = await this.resolveDownloadUrl(asset);
+        }
         await addImageToScene(url, { name: asset.name, isMap: asset.type === AssetType.Map });
         break;
       }
       case "download": {
         // Some assets are served with a download disposition rather than
-        // rendering inline in a new tab - fine (expected, even) for "Download",
-        // but that's exactly why "preview" (see getPreviewUrl()) shows the image
-        // in its own in-app overlay instead of opening the URL directly.
-        const url = await this.resolveDownloadUrl(asset);
+        // rendering inline in a new tab - fine (expected, even) for "Download".
+        // For an animated map this deliberately gives the real .mp4/.webm file
+        // (Owlbear can't use it as a scene image, but the GM can still want the
+        // actual video), unlike "add"/"preview" which fall back to the static
+        // thumbnail for those.
+        let url: string;
+        if (asset.flags.isScene) {
+          const bg = await this.resolveSceneBackground(asset);
+          url = bg?.url ?? asset.previewUrl;
+        } else {
+          url = await this.resolveDownloadUrl(asset);
+        }
         window.open(url, "_blank");
         break;
       }
