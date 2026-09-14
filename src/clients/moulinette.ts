@@ -65,10 +65,26 @@ export const MoulinetteClient = {
     return request(`/asset/${assetId}`, "GET", { session: getSessionId() });
   },
 
-  /** Bulk list of every asset the current session can access (free assets + supported creators). */
-  async getAllAssets(): Promise<{ assets: any[]; packs: Record<string, any> }> {
-    return request("/all-assets", "POST", undefined, {
-      scope: { session: getSessionId(), mode: "cloud-accessible" },
+  /**
+   * Server-side, paginated catalog search (same endpoint and "Cloud (discover)"
+   * mode the FoundryVTT module uses, `scope.mode: "cloud-all"`) - unlike
+   * `/all-assets`, this returns one page (~100 assets) at a time, each already
+   * carrying its full `pack` object, plus optional facets (`types`, `creators`,
+   * `packs`) computed server-side when requested.
+   */
+  async search(body: {
+    searchTerms: string;
+    type: number;
+    creator: string;
+    pack: string | null;
+    wholeWord: boolean;
+    page: number;
+    facets: { types: boolean; creators: boolean; packs: boolean };
+  }): Promise<Record<string, any>> {
+    return request("/search", "POST", undefined, {
+      ...body,
+      folder: null,
+      scope: { session: getSessionId(), mode: "cloud-all" },
     });
   },
 };

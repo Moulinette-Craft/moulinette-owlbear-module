@@ -63,7 +63,7 @@ export class GameIconsCollection implements MediaCollection {
 
   getActions(): AssetAction[] {
     return [
-      { id: "add", name: "Add to scene - click on the map to place it", icon: "fa-solid fa-file-import", primary: true },
+      { id: "add", name: "Add to Asset Manager - click on the map to place it", icon: "fa-solid fa-upload", primary: true },
       { id: "download", name: "Download SVG", icon: "fa-solid fa-cloud-arrow-down" },
     ];
   }

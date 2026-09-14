@@ -342,7 +342,11 @@ export class MoulinetteBrowser {
     this.page = 0;
     this.loadedAssets = [];
     this.noMore = false;
-    this.el("#mou-results").innerHTML = "";
+    const results = this.el("#mou-results");
+    results.innerHTML = "";
+    // Lets style.css size tiles differently per type (maps are wide/landscape and
+    // benefit from a bigger tile than a square icon or image thumbnail does).
+    results.dataset.type = this.filters.type;
     await this.collection.initialize();
     this.showError(this.collection.getError());
     await this.loadMore();
