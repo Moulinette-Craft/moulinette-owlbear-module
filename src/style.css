@@ -282,6 +282,14 @@ body {
   grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
 }
 
+/* A plain Image thumbnail is meant to be seen in full (object-fit: cover still
+   crops to the square, but this keeps it from looking like it's bleeding
+   straight off the tile's edge) - a small inset gives it a bit of breathing
+   room, unlike Maps/Icons which are meant to fill the tile edge-to-edge. */
+.mou-results[data-type="image"] .mou-thumb {
+  padding: 6px;
+}
+
 .mou-empty {
   grid-column: 1 / -1;
   text-align: center;
