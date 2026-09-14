@@ -95,7 +95,10 @@ export function matchesSearchTerm(haystack: string, term: string, wholeWord?: bo
 export function loadImage(url: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image();
-    img.crossOrigin = "anonymous";
+    // No crossOrigin: every caller only reads naturalWidth/naturalHeight, never
+    // canvas pixel data, so there's nothing that actually needs CORS here - and
+    // requesting it anyway would make the load fail outright against a host
+    // that doesn't send CORS headers (game-icons.net doesn't, for one).
     img.onload = () => resolve(img);
     img.onerror = reject;
     img.src = url;

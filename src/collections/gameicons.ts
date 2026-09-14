@@ -7,7 +7,7 @@ import { uploadImageToScene } from "../obr/scene";
 export class GameIconsCollection implements MediaCollection {
   id = "gameicons";
   name = "Game-icons.net";
-  description = "Thousands of free game icons by game-icons.net, recolorable and ready to drop on the scene.";
+  description = "Thousands of free game icons by game-icons.net, recolorable. \"Add\" uploads to your Owlbear asset library - drag it onto the map from the Assets panel to place it.";
   supportedTypes = [AssetType.Icon];
 
   private lastCount = 0;
@@ -64,10 +64,16 @@ export class GameIconsCollection implements MediaCollection {
     return [
       {
         id: "add",
-        name: "Add to Asset Manager - click on the map to place it",
+        name: "Add to Owlbear's asset library - then drag it onto the map from there",
         icon: "fa-solid fa-upload",
         primary: true,
-        successMessage: "Uploaded - click on the map to place it.",
+        // Owlbear shows a "click to place" cursor right after the upload, but
+        // found by testing that it's unreliable when triggered this way (via an
+        // extension's upload call rather than a direct user gesture) - it can
+        // silently do nothing, or throw a clipboard error, depending on timing.
+        // Steering straight to the reliable path (the Assets panel) instead of
+        // suggesting that cursor will work.
+        successMessage: "Added to your asset library. Press Esc to dismiss the placement cursor, then open the Assets panel and drag it onto the map from there.",
       },
       { id: "download", name: "Download SVG", icon: "fa-solid fa-cloud-arrow-down", successMessage: "Opened the SVG in a new tab." },
     ];
@@ -77,6 +83,16 @@ export class GameIconsCollection implements MediaCollection {
     const { fgColor, bgColor } = getAdvancedSettings().image;
     switch (actionId) {
       case "add": {
+        // A real hosted URL (buildImage/addItems, the instant-placement
+        // mechanism Moulinette Cloud uses) was tried and reverted: it doesn't
+        // render correctly on the scene for an externally-hosted resource like
+        // this. OBR.assets.uploadImages() (adds it to Owlbear's own asset
+        // library, from which the user places it themselves) is the reliable
+        // path - it does trigger an immediate "click to place" cursor that can
+        // throw a clipboard error right after upload (an Owlbear-side quirk,
+        // not something this extension controls), but the icon is safely in
+        // the library regardless, ready to drag onto the map from the Assets
+        // panel at any time even if that immediate placement attempt fails.
         // asset.id, not asset.url - see the doc comment on GameIconsClient.recolor().
         const blob = await GameIconsClient.recoloredPngBlob(asset.id, fgColor, bgColor);
         await uploadImageToScene(blob, { name: asset.name, size: GameIconsClient.ICON_SIZE, typeHint: "PROP" });
