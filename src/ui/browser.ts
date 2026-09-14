@@ -9,7 +9,7 @@ import { GameIconsCollection } from "../collections/gameicons";
 // import { FontAwesomeCollection } from "../collections/fontawesome";
 // import { BBCSoundsCollection } from "../collections/bbcsounds";
 import { Auth } from "../auth";
-import { getAdvancedSettings, setAdvancedSettings } from "../storage";
+import { getAdvancedSettings, getLastSearch, setAdvancedSettings, setLastSearch } from "../storage";
 import { debounce, escapeHtml, prettyNumber } from "../utils";
 import { MODAL_ID } from "../constants";
 import { describeError } from "../debug";
@@ -41,12 +41,23 @@ export class MoulinetteBrowser {
     this.collections = [this.cloudCollection, new GameIconsCollection()];
     this.collection = this.collections[0];
     this.filters.type = this.collection.supportedTypes[0];
+
+    // Reopening the browser (it has no persistent state of its own - Owlbear
+    // reloads this page fresh every time the modal opens) otherwise means
+    // starting from scratch on every single search. Restore whatever
+    // source/search/creator/pack was last used instead, when it still applies.
+    const saved = getLastSearch();
+    const savedCollection = saved && this.collections.find((c) => c.id === saved.collectionId);
+    if (saved && savedCollection) {
+      this.collection = savedCollection;
+      this.filters = savedCollection.supportedTypes.includes(saved.filters.type) ? saved.filters : { ...saved.filters, type: savedCollection.supportedTypes[0] };
+    }
   }
 
   async mount(): Promise<void> {
     this.renderShell();
     await this.refreshAccountWidget();
-    await this.selectCollection(this.collections[0].id, /*initial*/ true);
+    await this.selectCollection(this.collection.id, /*initial*/ true);
   }
 
   // ---------------------------------------------------------------- shell --
@@ -80,9 +91,9 @@ export class MoulinetteBrowser {
           <main class="mou-content">
             <div class="mou-search-bar">
               <i class="fa-solid fa-magnifying-glass"></i>
-              <input id="mou-search" type="search" placeholder="Search…" autocomplete="off" />
+              <input id="mou-search" type="search" placeholder="Search…" autocomplete="off" value="${escapeHtml(this.filters.searchTerms)}" />
               <label class="mou-wholeword" title="Match whole words only">
-                <input id="mou-wholeword" type="checkbox" /> Whole word
+                <input id="mou-wholeword" type="checkbox" ${this.filters.wholeWord ? "checked" : ""} /> Whole word
               </label>
               <span class="mou-count" id="mou-count"></span>
             </div>
@@ -320,9 +331,14 @@ export class MoulinetteBrowser {
     if (!this.collection.supportedTypes.includes(this.filters.type)) {
       this.filters.type = this.collection.supportedTypes[0];
     }
-    this.filters.creator = "";
-    this.filters.pack = "";
-    if (!initial) this.renderCollectionsList();
+    // Skipped on the initial (restored) load: the saved creator/pack are for
+    // this very collection and still apply, whereas an actual user-driven
+    // switch away from the current collection should drop them.
+    if (!initial) {
+      this.filters.creator = "";
+      this.filters.pack = "";
+      this.renderCollectionsList();
+    }
     this.renderTypesList();
     this.renderAdvancedSettings();
     await this.runSearch();
@@ -344,6 +360,7 @@ export class MoulinetteBrowser {
     // Lets style.css size tiles differently per type (maps are wide/landscape and
     // benefit from a bigger tile than a square icon or image thumbnail does).
     results.dataset.type = this.filters.type;
+    setLastSearch({ collectionId: this.collection.id, filters: this.filters });
     await this.collection.initialize();
     this.showError(this.collection.getError());
     await this.loadMore();

@@ -1,4 +1,5 @@
-import { AdvancedSettings, DEFAULT_ADVANCED_SETTINGS, LS_SESSION_ID, LS_SETTINGS } from "./constants";
+import { AdvancedSettings, DEFAULT_ADVANCED_SETTINGS, LS_LAST_SEARCH, LS_SESSION_ID, LS_SETTINGS } from "./constants";
+import { SearchFilters } from "./types";
 
 /**
  * All persisted state lives in this browser's localStorage rather than in Owlbear's
@@ -34,4 +35,26 @@ export function getAdvancedSettings(): AdvancedSettings {
 
 export function setAdvancedSettings(settings: AdvancedSettings): void {
   localStorage.setItem(LS_SETTINGS, JSON.stringify(settings));
+}
+
+export interface PersistedSearch {
+  collectionId: string;
+  filters: SearchFilters;
+}
+
+/** Restores whatever source/search/creator/pack was last used, so closing and reopening the browser doesn't start from scratch every time. */
+export function getLastSearch(): PersistedSearch | null {
+  try {
+    const raw = localStorage.getItem(LS_LAST_SEARCH);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed?.collectionId || !parsed?.filters) return null;
+    return parsed as PersistedSearch;
+  } catch {
+    return null;
+  }
+}
+
+export function setLastSearch(state: PersistedSearch): void {
+  localStorage.setItem(LS_LAST_SEARCH, JSON.stringify(state));
 }
