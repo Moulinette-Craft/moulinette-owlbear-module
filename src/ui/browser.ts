@@ -98,8 +98,9 @@ export class MoulinetteBrowser {
               <span class="mou-count" id="mou-count"></span>
             </div>
             <div class="mou-error" id="mou-error" hidden></div>
-            <div class="mou-results" id="mou-results"></div>
-            <div class="mou-sentinel" id="mou-sentinel"></div>
+            <div class="mou-results" id="mou-results">
+              <div class="mou-sentinel" id="mou-sentinel"></div>
+            </div>
           </main>
         </div>
         <audio id="mou-audio"></audio>
@@ -375,7 +376,10 @@ export class MoulinetteBrowser {
     this.loadedAssets = [];
     this.noMore = false;
     const results = this.el("#mou-results");
-    results.innerHTML = "";
+    // Removes only the previous results (cards / "no results" message), not the
+    // sentinel: it needs to stay the same DOM node across searches, since
+    // IntersectionObserver.observe() was only ever called on that one node.
+    results.querySelectorAll(".mou-asset, .mou-empty").forEach((el) => el.remove());
     // Lets style.css size tiles differently per type (maps are wide/landscape and
     // benefit from a bigger tile than a square icon or image thumbnail does).
     results.dataset.type = this.filters.type;
@@ -411,9 +415,10 @@ export class MoulinetteBrowser {
         this.noMore = true;
         if (this.page === 0) {
           const needsSearch = !this.collection.isBrowsable() && this.filters.searchTerms.trim().length < 3;
-          this.el("#mou-results").innerHTML = `<div class="mou-empty">${
-            needsSearch ? "Type at least 3 characters to search." : "No results found."
-          }</div>`;
+          const empty = document.createElement("div");
+          empty.className = "mou-empty";
+          empty.textContent = needsSearch ? "Type at least 3 characters to search." : "No results found.";
+          this.el("#mou-results").insertBefore(empty, this.el("#mou-sentinel"));
         }
         return;
       }
@@ -444,7 +449,12 @@ export class MoulinetteBrowser {
     for (const asset of assets) {
       frag.appendChild(this.renderAssetCard(asset));
     }
-    results.appendChild(frag);
+    // The sentinel has to stay the *last* grid child - it needs to be a
+    // descendant of the scrolling container (#mou-results) for the
+    // IntersectionObserver to ever see it go in and out of view as the user
+    // scrolls, and it has to stay after every asset so "near the bottom"
+    // actually means what it says.
+    results.insertBefore(frag, this.el("#mou-sentinel"));
   }
 
   private renderAssetCard(asset: MediaAsset): HTMLElement {
