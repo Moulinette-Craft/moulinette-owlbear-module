@@ -347,7 +347,22 @@ body {
 .mou-thumb img {
   width: 100%;
   height: 100%;
-  object-fit: none;
+  /* `cover` scales the image proportionally so it fills the square with no
+     empty border, cropping whatever overflows instead of stretching/distorting
+     it - unlike the previous `none`, which showed the image at its native
+     pixel size (an odd crop for a big image, an empty-bordered square for a
+     small one). Source thumbnails are always higher-res than these tiles, so
+     in practice this only ever scales down, never up. */
+  object-fit: cover;
+}
+
+/* Scenes: the background image is inset within the thumbnail's own padded
+   canvas (transparent margins baked into the same file) rather than filling
+   it - cropping would just trade one empty region for another, so the whole
+   thing is shown uncropped instead, against the canvas color set inline on
+   .mou-thumb once it's resolved (see browser.ts). */
+.mou-thumb-contain img {
+  object-fit: contain;
 }
 
 .mou-name {

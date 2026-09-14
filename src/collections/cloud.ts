@@ -53,6 +53,8 @@ interface RawAsset {
   pack: RawPack;
   size?: { width: number; height: number };
   audio?: { duration: number };
+  /** Dominant color of the thumbnail, computed server-side, without the leading "#" - only present for Scene/Map assets (mirrors the FoundryVTT module's `background_color`/`main_color`). */
+  main_color?: string;
 }
 
 function toMediaAsset(raw: RawAsset): MediaAsset | null {
@@ -96,7 +98,11 @@ function toMediaAsset(raw: RawAsset): MediaAsset | null {
     meta,
     free: raw.perms === 0,
     locked,
-    flags: { isScene: raw.type === 1 },
+    // Scene/Map thumbnails are a render of a whole (often padded) canvas, not
+    // a full-bleed image - `main_color` is the dominant color computed
+    // server-side for exactly this purpose, so it's carried straight from the
+    // search result rather than something to fetch/derive ourselves.
+    flags: { isScene: raw.type === 1, bgColor: type === AssetType.Map && raw.main_color ? `#${raw.main_color}` : undefined },
   };
 }
 

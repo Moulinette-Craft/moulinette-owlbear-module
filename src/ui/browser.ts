@@ -488,9 +488,19 @@ export class MoulinetteBrowser {
       thumb.appendChild(img);
     }
 
-    // "Scene" is known immediately (from the search result itself); "Animated"
-    // can only be known by resolving the scene's actual background, so it's
-    // added asynchronously below once that resolves.
+    // Scene/Map thumbnails are a render of a whole (often padded) canvas, not a
+    // full-bleed image - the background image is usually inset within it
+    // (transparent margins baked into the same file), so cropping to fill the
+    // square (like every other thumbnail) would just crop between different
+    // empty regions instead of helping. Shown uncropped instead, against the
+    // dominant color the API computed for it (`bgColor`, from the search
+    // result itself - known immediately, unlike "Animated" below, which can
+    // only be found by resolving the scene's actual background).
+    if (typeof asset.flags.bgColor === "string") {
+      thumb.style.backgroundColor = asset.flags.bgColor;
+      thumb.classList.add("mou-thumb-contain");
+    }
+
     const badges = document.createElement("div");
     badges.className = "mou-badges";
     if (asset.flags.isScene) {
