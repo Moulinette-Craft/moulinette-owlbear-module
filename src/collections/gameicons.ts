@@ -95,7 +95,7 @@ export class GameIconsCollection implements MediaCollection {
         // panel at any time even if that immediate placement attempt fails.
         // asset.id, not asset.url - see the doc comment on GameIconsClient.recolor().
         const blob = await GameIconsClient.recoloredPngBlob(asset.id, fgColor, bgColor);
-        await uploadImageToScene(blob, { name: asset.name, size: GameIconsClient.ICON_SIZE, typeHint: "PROP" });
+        await uploadImageToScene(blob, { name: asset.name, typeHint: "PROP" });
         break;
       }
       case "download": {

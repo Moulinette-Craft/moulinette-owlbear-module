@@ -275,6 +275,13 @@ body {
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
 }
 
+/* Moulinette Cloud's "Image" type shows an action bar with more buttons than an
+   icon card (preview/download/add) - a bit more width keeps them from crowding
+   each other, without going as large as the map tiles. */
+.mou-results[data-type="image"] {
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+}
+
 .mou-empty {
   grid-column: 1 / -1;
   text-align: center;

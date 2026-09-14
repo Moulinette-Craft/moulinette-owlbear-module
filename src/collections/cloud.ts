@@ -2,7 +2,7 @@ import { MOU_STORAGE, MOU_STORAGE_PUB } from "../constants";
 import { MoulinetteClient } from "../clients/moulinette";
 import { AssetAction, AssetType, Facet, MediaAsset, MediaCollection, SearchFilters, SearchResults } from "../types";
 import { prettyDuration, prettyFilesize, prettyMediaName } from "../utils";
-import { addImageToScene } from "../obr/scene";
+import { uploadImageToScene } from "../obr/scene";
 import { describeError } from "../debug";
 
 // Asset type ids used by the Moulinette Cloud API (shared with the FoundryVTT
@@ -136,7 +136,8 @@ function mergePacks(packs: RawPackFacet[]): Facet[] {
 export class CloudCollection implements MediaCollection {
   id = "moulinette-cloud";
   name = "Moulinette Cloud";
-  description = "Browse the full Moulinette Cloud marketplace - maps and images from every creator.";
+  description =
+    "Browse the full Moulinette Cloud marketplace - maps and images from every creator. \"Add\" uploads to your Owlbear asset library - drag it onto the map from the Assets panel to place it.";
   // Audio is temporarily disabled (not removed) at the user's request, to keep
   // the surface area small while iterating. Re-enable by adding AssetType.Audio
   // back here.
@@ -272,7 +273,13 @@ export class CloudCollection implements MediaCollection {
     } else if (asset.type === AssetType.Audio) {
       actions.push({ id: "play", name: "Play / stop", icon: "fa-solid fa-play-pause", primary: true });
     } else {
-      actions.push({ id: "add", name: "Add to scene", icon: "fa-solid fa-file-import", primary: true, successMessage: `Added "${asset.name}" to the scene.` });
+      actions.push({
+        id: "add",
+        name: "Add to Owlbear's asset library - then drag it onto the map from there",
+        icon: "fa-solid fa-upload",
+        primary: true,
+        successMessage: "Added to your asset library. Press Esc to dismiss the placement cursor, then open the Assets panel and drag it onto the map from there.",
+      });
       actions.push({ id: "preview", name: "Preview", icon: "fa-solid fa-magnifying-glass" });
     }
     if (!asset.locked) {
@@ -378,7 +385,18 @@ export class CloudCollection implements MediaCollection {
         } else {
           url = await this.resolveDownloadUrl(asset);
         }
-        await addImageToScene(url, { name: asset.name, isMap: asset.type === AssetType.Map });
+        // Not addImageToScene(url, ...): that URL is signed with a short-lived
+        // SAS token (an hour or so) - baking it straight into a scene item would
+        // work today and quietly break for everyone once the token expires.
+        // Downloading the actual bytes once, now, and handing them to Owlbear's
+        // asset library instead gives the item a URL Owlbear hosts permanently.
+        const blob = await fetch(url).then((r) => r.blob());
+        await uploadImageToScene(blob, {
+          name: asset.name,
+          isMap: asset.type === AssetType.Map,
+          typeHint: asset.type === AssetType.Map ? "MAP" : "PROP",
+          sourceUrl: url,
+        });
         break;
       }
       case "download": {

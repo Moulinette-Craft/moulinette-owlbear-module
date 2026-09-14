@@ -576,15 +576,10 @@ export class MoulinetteBrowser {
       if (typeof OBR !== "undefined") {
         OBR.notification.show(action.successMessage ?? `${action.name} - done.`, "SUCCESS");
       }
-      // "add" either places the item straight away (Moulinette Cloud, at the
-      // viewport's center) or hands off to Owlbear's own click-to-place flow
-      // (game-icons/Font Awesome, via OBR.assets.uploadImages) - either way the
-      // scene itself needs to be visible for the user to see the result or click
-      // on it, which this fullscreen modal is currently covering entirely.
-      if (actionId === "add") {
-        this.close();
-        return;
-      }
+      // Every "add" now uploads to Owlbear's own asset library rather than
+      // placing directly (see cloud.ts/gameicons.ts) - the window stays open on
+      // purpose, so several icons/maps can be queued up in a row before going
+      // to drag them onto the map from the Assets panel all at once.
     } catch (e) {
       console.error("[Moulinette] handleAction: action failed", actionId, describeError(e));
       if (typeof OBR !== "undefined") {

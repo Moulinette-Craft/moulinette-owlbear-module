@@ -98,33 +98,69 @@ const EXT_FROM_MIME: Record<string, string> = {
   "image/gif": "gif",
 };
 
+function blobDimensions(blob: Blob): Promise<{ width: number; height: number }> {
+  const objectUrl = URL.createObjectURL(blob);
+  return loadImage(objectUrl)
+    .then((img) => ({ width: img.naturalWidth, height: img.naturalHeight }))
+    .finally(() => URL.revokeObjectURL(objectUrl));
+}
+
+export interface UploadImageOptions {
+  name: string;
+  /** Treated as a full battle-map (larger default tile, MAP typeHint) rather than a 1-cell prop/icon. */
+  isMap?: boolean;
+  sourcePixelsPerCell?: number;
+  typeHint?: ImageAssetType;
+  /**
+   * The asset's original URL, if it has one - used to determine a reliable MIME
+   * type via `mimeFromUrl()` instead of trusting `blob.type`. Needed for a
+   * fetched Blob (Moulinette Cloud): found by trial and error, some storage
+   * responses don't set a `Content-Type` Owlbear recognizes even for an
+   * ordinary ".png" file, and Owlbear's upload validation checks the Blob's
+   * declared type, not the filename extension we give it - a mismatched type
+   * fails with "Unsupported file type" regardless of what the file is named.
+   * Omit for a Blob this module built itself (game-icons.net, Font Awesome),
+   * whose `.type` it set correctly to begin with.
+   */
+  sourceUrl?: string;
+}
+
 /**
- * Adds a client-generated image (rasterized game-icons.net icon, Font Awesome
- * glyph, ...) to the scene. Unlike `addImageToScene()`, this does NOT go through
- * `buildImage()` + `addItems()`: Owlbear's scene items only accept real http(s)
- * image URLs (found by trial and error - a `data:` URL builds fine locally but
- * fails to render with "Unable to fetch image: Invalid URL" once synced, since
- * other players' clients need an actual URL to fetch, not bytes that only exist
- * in this browser's memory). `OBR.assets.uploadImages()` is the SDK's own way to
- * hand it a real Blob instead: Owlbear hosts it and lets the player click on the
- * scene to place it - the same flow as dragging a file in from your computer, so
- * there's no `position` to pass here.
+ * Adds an image to the scene via Owlbear's asset library rather than
+ * `buildImage()` + `addItems()` (see `addImageToScene()`). Needed for two kinds
+ * of images `addItems()` can't handle as a direct URL:
+ *  - client-generated ones (rasterized game-icons.net icon, Font Awesome glyph,
+ *    ...): `addItems()` only accepts a real http(s) URL (a `data:`/`blob:` URL
+ *    builds fine locally but fails with "Unable to fetch image: Invalid URL"
+ *    once synced, since every other player's own client needs a URL it can
+ *    fetch too - there's nothing to fetch for bytes that only ever existed in
+ *    this browser's memory).
+ *  - Moulinette Cloud assets: their download URL is signed with a short-lived
+ *    SAS token (an hour or so) - baking that straight into a scene item's
+ *    `image.url` would work today and quietly break for everyone once the
+ *    token expires. Uploading the actual bytes gives the item a URL Owlbear
+ *    hosts permanently instead.
+ *
+ * `OBR.assets.uploadImages()` hands the file to Owlbear's own asset library and
+ * lets the player place it from there (the same flow as dragging a file in from
+ * your computer) - there's no `position` to pass here, and no way to skip
+ * straight to a placed item the way `addImageToScene()` does.
  *
  * `blob` must be a raster format (PNG/JPEG/WebP/GIF) - Owlbear's own upload
- * validation rejects SVG outright ("Unsupported file type", also found by trial
- * and error), so any client-generated SVG needs rasterizing first (see
+ * validation rejects SVG outright ("Unsupported file type", found by trial and
+ * error), so any client-generated SVG needs rasterizing first (see
  * `svgToPngBlob()` in utils.ts) before it ever reaches this function.
  */
-export async function uploadImageToScene(
-  blob: Blob,
-  options: { name: string; size: number; typeHint?: ImageAssetType },
-): Promise<void> {
-  const ext = EXT_FROM_MIME[blob.type] ?? "png";
-  const file = new File([blob], `${options.name}.${ext}`, { type: blob.type });
+export async function uploadImageToScene(blob: Blob, options: UploadImageOptions): Promise<void> {
+  const { width, height } = await blobDimensions(blob);
+  const gridDpi = options.isMap ? (options.sourcePixelsPerCell ?? DEFAULT_SOURCE_PIXELS_PER_CELL) : Math.max(width, height);
+  const mime = options.sourceUrl ? mimeFromUrl(options.sourceUrl) : blob.type || "image/png";
+  const ext = EXT_FROM_MIME[mime] ?? "png";
+  const file = new File([blob], `${options.name}.${ext}`, { type: mime });
   const upload = buildImageUpload(file)
     .name(options.name)
-    .dpi(options.size)
-    .offset({ x: options.size / 2, y: options.size / 2 })
+    .dpi(gridDpi)
+    .offset({ x: width / 2, y: height / 2 })
     .build();
   try {
     await OBR.assets.uploadImages([upload], options.typeHint);
