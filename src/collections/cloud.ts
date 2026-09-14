@@ -310,21 +310,35 @@ export class CloudCollection implements MediaCollection {
     let promise = this.sceneBackgroundCache.get(asset.id);
     if (!promise) {
       promise = (async () => {
+        const full = await MoulinetteClient.getAsset(asset.id);
+        const sceneUrl = `${full.base_url}/${full.file_url}`;
+        let sceneDoc: any;
         try {
-          const full = await MoulinetteClient.getAsset(asset.id);
-          const sceneUrl = `${full.base_url}/${full.file_url}`;
-          const sceneDoc = await fetch(sceneUrl).then((r) => r.json());
-          const src: string | undefined = sceneDoc?.background?.src;
-          const depFilename = src?.replace("#DEP#", "");
-          const dep: string | undefined = depFilename ? (full.deps as string[] | undefined)?.find((d) => d.startsWith(depFilename)) : undefined;
-          if (!dep) return null;
-          const ext = dep.split("?")[0].split(".").pop()?.toLowerCase();
-          const isVideo = !!ext && ["mp4", "webm", "mov", "m4v"].includes(ext);
-          return { url: `${full.base_url}/${dep}`, isVideo };
+          sceneDoc = await fetch(sceneUrl).then((r) => r.json());
         } catch (e) {
-          console.error("Moulinette | Failed to resolve a scene's background", describeError(e));
+          console.error(`Moulinette | Failed to download/parse scene JSON for asset ${asset.id}`, describeError(e));
           return null;
         }
+
+        // Foundry moved the scene background from a plain top-level "img"
+        // string (v9 and earlier) to a "background: { src }" object (v10+) -
+        // Moulinette's catalog has content exported from both eras.
+        const src: string | undefined = sceneDoc?.background?.src ?? sceneDoc?.img;
+        if (!src) {
+          console.error(`Moulinette | Scene ${asset.id} has neither background.src nor img`, sceneDoc);
+          return null;
+        }
+
+        const depFilename = src.startsWith("#DEP#") ? src.slice("#DEP#".length) : src;
+        const dep: string | undefined = (full.deps as string[] | undefined)?.find((d) => d.startsWith(depFilename));
+        if (!dep) {
+          console.error(`Moulinette | Scene ${asset.id}: no dependency matching "${depFilename}" in`, full.deps);
+          return null;
+        }
+
+        const ext = dep.split("?")[0].split(".").pop()?.toLowerCase();
+        const isVideo = !!ext && ["mp4", "webm", "mov", "m4v"].includes(ext);
+        return { url: `${full.base_url}/${dep}`, isVideo };
       })();
       this.sceneBackgroundCache.set(asset.id, promise);
     }
