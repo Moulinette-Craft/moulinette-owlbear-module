@@ -330,6 +330,7 @@ body {
   font-size: 28px;
   color: var(--mou-text-dim);
   position: relative;
+  border-radius: 8px 8px 0px 0px;
 }
 
 .mou-badges {
