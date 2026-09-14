@@ -115,6 +115,12 @@ export class MoulinetteBrowser {
     search.addEventListener("keydown", (e) => {
       if (e.key === "Enter") performSearch();
     });
+    search.addEventListener("contextmenu", (e) => {
+      e.preventDefault();
+      search.value = "";
+      this.filters.searchTerms = "";
+      this.runSearch();
+    });
 
     this.el<HTMLInputElement>("#mou-wholeword").addEventListener("change", (e) => {
       this.filters.wholeWord = (e.target as HTMLInputElement).checked;
@@ -266,13 +272,26 @@ export class MoulinetteBrowser {
           : ""
       }
     `;
-    this.root.querySelector("#mou-creator")?.addEventListener("change", (e) => {
+    const creatorSelect = this.root.querySelector<HTMLSelectElement>("#mou-creator");
+    creatorSelect?.addEventListener("change", (e) => {
       this.filters.creator = (e.target as HTMLSelectElement).value;
       this.filters.pack = "";
       this.runSearch();
     });
-    this.root.querySelector("#mou-pack")?.addEventListener("change", (e) => {
+    creatorSelect?.addEventListener("contextmenu", (e) => {
+      e.preventDefault();
+      this.filters.creator = "";
+      this.filters.pack = "";
+      this.runSearch();
+    });
+    const packSelect = this.root.querySelector<HTMLSelectElement>("#mou-pack");
+    packSelect?.addEventListener("change", (e) => {
       this.filters.pack = (e.target as HTMLSelectElement).value;
+      this.runSearch();
+    });
+    packSelect?.addEventListener("contextmenu", (e) => {
+      e.preventDefault();
+      this.filters.pack = "";
       this.runSearch();
     });
   }
