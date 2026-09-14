@@ -1,5 +1,5 @@
 import OBR from "@owlbear-rodeo/sdk";
-import { AssetType, MediaAsset, MediaCollection, SearchFilters } from "../types";
+import { AssetAction, AssetType, MediaAsset, MediaCollection, SearchFilters } from "../types";
 import { CloudCollection } from "../collections/cloud";
 import { GameIconsCollection } from "../collections/gameicons";
 // Font Awesome and BBC Sound Effects are temporarily disabled (not removed - the
@@ -12,7 +12,7 @@ import { Auth } from "../auth";
 import { getAdvancedSettings, setAdvancedSettings } from "../storage";
 import { debounce, escapeHtml, prettyNumber } from "../utils";
 import { MODAL_ID } from "../constants";
-import { debugLog, describeError } from "../debug";
+import { describeError } from "../debug";
 
 const TYPE_LABELS: Record<AssetType, { label: string; icon: string }> = {
   [AssetType.Map]: { label: "Maps", icon: "fa-solid fa-map" },
@@ -473,7 +473,7 @@ export class MoulinetteBrowser {
       btn.className = `mou-action-btn${action.primary ? " primary" : ""}`;
       btn.title = action.name;
       btn.innerHTML = `<i class="${action.icon}"></i>`;
-      btn.addEventListener("click", () => this.handleAction(action.id, asset, btn));
+      btn.addEventListener("click", () => this.handleAction(action, asset, btn));
       actions.appendChild(btn);
     }
     card.appendChild(actions);
@@ -481,7 +481,8 @@ export class MoulinetteBrowser {
     return card;
   }
 
-  private async handleAction(actionId: string, asset: MediaAsset, button: HTMLButtonElement): Promise<void> {
+  private async handleAction(action: AssetAction, asset: MediaAsset, button: HTMLButtonElement): Promise<void> {
+    const actionId = action.id;
     if (actionId === "browse-pack") {
       if (asset.creator) this.filters.creator = asset.creator;
       this.filters.pack = asset.packId || "";
@@ -499,36 +500,30 @@ export class MoulinetteBrowser {
       }
       return;
     }
-    if (actionId === "preview" && asset.type !== AssetType.Audio) {
-      this.openLightbox(asset);
+    if (actionId === "preview") {
+      await this.openPreview(asset, button);
       return;
     }
-
-    debugLog("handleAction: click", actionId, "on", asset, "(collection:", this.collection.id + ")");
     button.disabled = true;
     const icon = button.querySelector("i");
     const originalClass = icon?.className;
     if (icon) icon.className = "fa-solid fa-spinner fa-spin";
     try {
       await this.collection.executeAction(actionId, asset);
-      debugLog("handleAction: executeAction resolved for", actionId);
+      if (typeof OBR !== "undefined") {
+        OBR.notification.show(action.successMessage ?? `${action.name} - done.`, "SUCCESS");
+      }
       // "add" either places the item straight away (Moulinette Cloud, at the
       // viewport's center) or hands off to Owlbear's own click-to-place flow
       // (game-icons/Font Awesome, via OBR.assets.uploadImages) - either way the
       // scene itself needs to be visible for the user to see the result or click
       // on it, which this fullscreen modal is currently covering entirely.
-      //
-      // TEMPORARILY DISABLED while debugging "Add to scene": closing the modal
-      // would also tear down the on-screen debug panel before it can be read.
-      // Re-enable once the game-icons issue is fixed.
-      // if (actionId === "add") {
-      //   debugLog("handleAction: closing modal after add");
-      //   this.close();
-      //   return;
-      // }
+      if (actionId === "add") {
+        this.close();
+        return;
+      }
     } catch (e) {
-      debugLog("handleAction: action FAILED", actionId, describeError(e));
-      console.error("[Moulinette] handleAction: action failed", actionId, e);
+      console.error("[Moulinette] handleAction: action failed", actionId, describeError(e));
       if (typeof OBR !== "undefined") {
         OBR.notification.show("Moulinette: action failed - see console for details.", "ERROR");
       }
@@ -559,15 +554,52 @@ export class MoulinetteBrowser {
     });
   }
 
-  private openLightbox(asset: MediaAsset): void {
-    // Uses the thumbnail/preview URL rather than the full-resolution asset: for
-    // Moulinette Cloud, resolving the real download URL requires an extra signed
-    // API call (see CloudCollection.resolveDownloadUrl), which "Add to scene" and
-    // "Download" already do when actually needed.
+  private async openPreview(asset: MediaAsset, button: HTMLButtonElement): Promise<void> {
+    button.disabled = true;
+    const icon = button.querySelector("i");
+    const originalClass = icon?.className;
+    if (icon) icon.className = "fa-solid fa-spinner fa-spin";
+    try {
+      // Full resolution for collections that can resolve one (Moulinette Cloud);
+      // falls back to the thumbnail for everything else.
+      const url = this.collection.getPreviewUrl ? await this.collection.getPreviewUrl(asset) : asset.previewUrl;
+      this.showLightbox(url, asset.name);
+    } catch (e) {
+      console.error("[Moulinette] openPreview: failed", describeError(e));
+      if (typeof OBR !== "undefined") {
+        OBR.notification.show("Moulinette: could not load the preview.", "ERROR");
+      }
+    } finally {
+      button.disabled = false;
+      if (icon && originalClass) icon.className = originalClass;
+    }
+  }
+
+  /** Near-fullscreen in-app overlay, since some assets are served with a download
+   * disposition and just open a file-save prompt instead of rendering when their
+   * URL is opened directly in a new tab. */
+  private showLightbox(url: string, name: string): void {
     const overlay = document.createElement("div");
     overlay.className = "mou-lightbox";
-    overlay.innerHTML = `<img src="${asset.previewUrl}" alt="${escapeHtml(asset.name)}" />`;
-    overlay.addEventListener("click", () => overlay.remove());
+    overlay.innerHTML = `
+      <button class="mou-lightbox-close" title="Close (Esc)"><i class="fa-solid fa-xmark"></i></button>
+      <img src="${url}" alt="${escapeHtml(name)}" />
+    `;
+    const close = () => {
+      overlay.remove();
+      document.removeEventListener("keydown", onKeyDown);
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") close();
+    };
+    // Clicking the backdrop closes it; clicking the image itself (a different
+    // target than the overlay) does not, so an accidental click while looking
+    // at the image doesn't dismiss it.
+    overlay.addEventListener("click", (e) => {
+      if (e.target === overlay) close();
+    });
+    overlay.querySelector(".mou-lightbox-close")?.addEventListener("click", close);
+    document.addEventListener("keydown", onKeyDown);
     document.body.appendChild(overlay);
   }
 }

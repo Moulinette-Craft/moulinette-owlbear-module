@@ -3,7 +3,6 @@ import { GameIconsClient } from "../clients/gameicons";
 import { AssetAction, AssetType, MediaAsset, MediaCollection, SearchFilters, SearchResults } from "../types";
 import { getAdvancedSettings } from "../storage";
 import { uploadImageToScene } from "../obr/scene";
-import { debugLog } from "../debug";
 
 export class GameIconsCollection implements MediaCollection {
   id = "gameicons";
@@ -63,8 +62,14 @@ export class GameIconsCollection implements MediaCollection {
 
   getActions(): AssetAction[] {
     return [
-      { id: "add", name: "Add to Asset Manager - click on the map to place it", icon: "fa-solid fa-upload", primary: true },
-      { id: "download", name: "Download SVG", icon: "fa-solid fa-cloud-arrow-down" },
+      {
+        id: "add",
+        name: "Add to Asset Manager - click on the map to place it",
+        icon: "fa-solid fa-upload",
+        primary: true,
+        successMessage: "Uploaded - click on the map to place it.",
+      },
+      { id: "download", name: "Download SVG", icon: "fa-solid fa-cloud-arrow-down", successMessage: "Opened the SVG in a new tab." },
     ];
   }
 
@@ -72,12 +77,9 @@ export class GameIconsCollection implements MediaCollection {
     const { fgColor, bgColor } = getAdvancedSettings().image;
     switch (actionId) {
       case "add": {
-        debugLog("GameIcons add: asset.id", asset.id, "name", asset.name, "fgColor", fgColor, "bgColor", bgColor);
         // asset.id, not asset.url - see the doc comment on GameIconsClient.recolor().
         const blob = await GameIconsClient.recoloredPngBlob(asset.id, fgColor, bgColor);
-        debugLog("GameIcons add: rasterized PNG blob ready, type =", blob.type, "size =", blob.size);
         await uploadImageToScene(blob, { name: asset.name, size: GameIconsClient.ICON_SIZE, typeHint: "PROP" });
-        debugLog("GameIcons add: uploadImageToScene done");
         break;
       }
       case "download": {

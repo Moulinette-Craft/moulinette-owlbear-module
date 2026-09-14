@@ -79,6 +79,8 @@ export interface AssetAction {
   name: string;
   icon: string; // Font Awesome class
   primary?: boolean; // rendered larger / first
+  /** Shown as an Owlbear notification once the action resolves successfully. Falls back to a generic "<name> done" message when omitted. */
+  successMessage?: string;
 }
 
 export interface MediaCollection {
@@ -111,4 +113,11 @@ export interface MediaCollection {
    * real asset, and who need to resolve a signed download URL first.
    */
   getPlaybackUrl?(asset: MediaAsset): Promise<string>;
+
+  /**
+   * Resolves the URL to show full-size in the in-app "preview" overlay. Defaults
+   * to `asset.previewUrl` (thumbnail quality) when not implemented; overridden by
+   * Moulinette Cloud to resolve the real, full-resolution asset first.
+   */
+  getPreviewUrl?(asset: MediaAsset): Promise<string>;
 }

@@ -14,15 +14,9 @@ import { MODAL_ID } from "./constants";
  * again on later clicks). `onOpenChange` fires every time the popover is actually
  * shown, so the modal reliably (re)opens on every click instead.
  */
-console.log("[Moulinette] action.ts loaded, document.baseURI =", document.baseURI);
-
 OBR.onReady(() => {
-  console.log("[Moulinette] action.ts: OBR.onReady fired, subscribing to onOpenChange");
   OBR.action.onOpenChange((isOpen) => {
-    console.log("[Moulinette] action.ts: onOpenChange", isOpen);
     if (!isOpen) return;
-    const url = new URL("index.html", document.baseURI).href;
-    console.log("[Moulinette] action.ts: opening modal with url", url);
     OBR.modal.open({
       id: MODAL_ID,
       // A relative "index.html" is NOT resolved against this page's own location
@@ -32,7 +26,7 @@ OBR.onReady(() => {
       // ourselves with the standard URL constructor sidesteps that entirely, and
       // still works unchanged in dev/tunnel testing since it's relative to
       // wherever this page itself was actually loaded from.
-      url,
+      url: new URL("index.html", document.baseURI).href,
       fullScreen: true,
     });
     OBR.action.close();

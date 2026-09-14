@@ -3,7 +3,7 @@ import { MoulinetteClient } from "../clients/moulinette";
 import { AssetAction, AssetType, Facet, MediaAsset, MediaCollection, SearchFilters, SearchResults } from "../types";
 import { prettyDuration, prettyFilesize, prettyMediaName } from "../utils";
 import { addImageToScene } from "../obr/scene";
-import { debugLog, describeError } from "../debug";
+import { describeError } from "../debug";
 
 // Asset type ids used by the Moulinette Cloud API (shared with the FoundryVTT
 // module's MouCollectionAssetTypeEnum). Only the ones with a real Owlbear
@@ -68,12 +68,12 @@ function toMediaAsset(raw: RawAsset): MediaAsset | null {
   }
   if ((type === AssetType.Image || type === AssetType.Map) && raw.size) {
     meta.push({
-      icon: "fa-regular fa-expand-wide",
+      icon: "fa-solid fa-ruler-combined",
       text: `${raw.size.width} x ${raw.size.height}`,
       hint: "Dimensions",
     });
   }
-  meta.push({ icon: "fa-regular fa-weight-hanging", text: prettyFilesize(raw.filesize, 0), hint: "File size" });
+  meta.push({ icon: "fa-solid fa-weight-hanging", text: prettyFilesize(raw.filesize, 0), hint: "File size" });
 
   return {
     id: String(raw._id),
@@ -178,8 +178,6 @@ export class CloudCollection implements MediaCollection {
     const creatorChanged = typeChanged || this.cache.creator !== filters.creator;
     const facets = { types: typeChanged, creators: typeChanged, packs: creatorChanged };
 
-    debugLog("CloudCollection.search: filters =", filters, "page =", page, "facets requested =", facets);
-
     try {
       const raw = await MoulinetteClient.search({
         searchTerms: filters.searchTerms,
@@ -215,7 +213,6 @@ export class CloudCollection implements MediaCollection {
       const packsForCreator = filters.creator ? mergePacks((this.cache.packs ?? []).filter((p) => p.creator === filters.creator)) : [];
 
       const assets: MediaAsset[] = (raw.assets ?? []).map(toMediaAsset).filter((a: MediaAsset | null): a is MediaAsset => a !== null);
-      debugLog("CloudCollection.search: server returned", raw.assets?.length ?? 0, "raw assets, kept", assets.length, "after type filtering");
 
       return {
         assets,
@@ -224,8 +221,7 @@ export class CloudCollection implements MediaCollection {
         types: this.cache.types ?? [],
       };
     } catch (e) {
-      debugLog("CloudCollection.search: FAILED", describeError(e));
-      console.error("Moulinette | Cloud search failed", e);
+      console.error("Moulinette | Cloud search failed", describeError(e));
       this.error = "Could not reach Moulinette Cloud. Check your connection and try again.";
       return { assets: [], creators: [], packs: [], types: [] };
     }
@@ -234,21 +230,27 @@ export class CloudCollection implements MediaCollection {
   getActions(asset: MediaAsset): AssetAction[] {
     const actions: AssetAction[] = [];
     if (asset.locked) {
-      actions.push({ id: "support", name: "Support the creator to unlock", icon: "fa-solid fa-hands-praying", primary: true });
+      actions.push({
+        id: "support",
+        name: "Support the creator to unlock",
+        icon: "fa-solid fa-hands-praying",
+        primary: true,
+        successMessage: "Opened the creator's page in a new tab.",
+      });
     } else if (asset.type === AssetType.Audio) {
       actions.push({ id: "play", name: "Play / stop", icon: "fa-solid fa-play-pause", primary: true });
     } else {
-      actions.push({ id: "add", name: "Add to scene", icon: "fa-solid fa-file-import", primary: true });
-      actions.push({ id: "preview", name: "Preview", icon: "fa-solid fa-eyes" });
+      actions.push({ id: "add", name: "Add to scene", icon: "fa-solid fa-file-import", primary: true, successMessage: `Added "${asset.name}" to the scene.` });
+      actions.push({ id: "preview", name: "Preview", icon: "fa-solid fa-magnifying-glass" });
     }
     if (!asset.locked) {
-      actions.push({ id: "download", name: "Download", icon: "fa-solid fa-cloud-arrow-down" });
+      actions.push({ id: "download", name: "Download", icon: "fa-solid fa-cloud-arrow-down", successMessage: "Opened the file in a new tab." });
     }
     if (asset.packId) {
-      actions.push({ id: "browse-pack", name: "Browse this pack", icon: "fa-solid fa-boxes-stacked" });
+      actions.push({ id: "browse-pack", name: "Browse this pack", icon: "fa-solid fa-box" });
     }
     if (!asset.locked) {
-      actions.push({ id: "support", name: "Visit creator", icon: "fa-solid fa-hands-praying" });
+      actions.push({ id: "support", name: "Visit creator", icon: "fa-solid fa-hands-praying", successMessage: "Opened the creator's page in a new tab." });
     }
     return actions;
   }
@@ -264,6 +266,11 @@ export class CloudCollection implements MediaCollection {
     return this.resolveDownloadUrl(asset);
   }
 
+  /** `previewUrl` is only thumbnail quality - the in-app preview overlay wants the real, full-resolution asset. */
+  async getPreviewUrl(asset: MediaAsset): Promise<string> {
+    return this.resolveDownloadUrl(asset);
+  }
+
   async executeAction(actionId: string, asset: MediaAsset): Promise<void> {
     switch (actionId) {
       case "add": {
@@ -272,6 +279,10 @@ export class CloudCollection implements MediaCollection {
         break;
       }
       case "download": {
+        // Some assets are served with a download disposition rather than
+        // rendering inline in a new tab - fine (expected, even) for "Download",
+        // but that's exactly why "preview" (see getPreviewUrl()) shows the image
+        // in its own in-app overlay instead of opening the URL directly.
         const url = await this.resolveDownloadUrl(asset);
         window.open(url, "_blank");
         break;

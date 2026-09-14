@@ -1,6 +1,5 @@
 import { MOU_API } from "../constants";
 import { getSessionId } from "../storage";
-import { debugLog } from "../debug";
 
 const HEADERS = { Accept: "application/json", "Content-Type": "application/json" };
 
@@ -11,24 +10,15 @@ async function request(uri: string, method: "GET" | "POST", params?: Record<stri
         .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
         .join("&")
     : "";
-  const url = `${MOU_API}${uri}${query}`;
-  debugLog("MoulinetteClient:", method, url, body !== undefined ? "body:" : "", body ?? "");
-  const response = await fetch(url, {
+  const response = await fetch(`${MOU_API}${uri}${query}`, {
     method,
     headers: HEADERS,
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
-  debugLog("MoulinetteClient: response status", response.status, "for", url);
   if (!response.ok) {
     throw new Error(`Moulinette API error: HTTP ${response.status} on ${uri}`);
   }
-  const json = await response.json();
-  // Full response bodies (especially /all-assets, which can list thousands of
-  // records) would flood the on-screen debug panel - log a bounded preview
-  // instead of the raw object.
-  const preview = JSON.stringify(json);
-  debugLog("MoulinetteClient: response body for", uri, "=", preview.length > 500 ? `${preview.slice(0, 500)}… (${preview.length} chars total)` : preview);
-  return json;
+  return response.json();
 }
 
 export const MoulinetteClient = {

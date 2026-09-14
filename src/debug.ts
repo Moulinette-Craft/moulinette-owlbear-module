@@ -1,40 +1,4 @@
 /**
- * Temporary on-screen debug logger, used while tracking down the "Add to scene"
- * issue. Owlbear's extension iframe is cross-origin from the room page, and
- * Firefox's DevTools console (even via "Inspect Element") wasn't reliably
- * surfacing its console.log output - writing the same messages directly into the
- * page sidesteps that devtools/iframe targeting problem entirely, since there's
- * nothing left to misconfigure: if the code runs, the message is on screen.
- *
- * Safe to remove once debugging is done (or leave in - it's inert until
- * debugLog() is actually called).
- */
-
-function panel(): HTMLDivElement {
-  let el = document.getElementById("mou-debug-panel") as HTMLDivElement | null;
-  if (!el) {
-    el = document.createElement("div");
-    el.id = "mou-debug-panel";
-    el.style.cssText =
-      "position:fixed;bottom:0;left:0;right:0;max-height:35vh;overflow-y:auto;" +
-      "background:rgba(10,10,10,0.92);color:#7CFC7C;font:11px/1.4 monospace;" +
-      "padding:6px 10px;z-index:99999;white-space:pre-wrap;word-break:break-word;" +
-      "border-top:2px solid #7CFC7C;";
-    document.body.appendChild(el);
-  }
-  return el;
-}
-
-function stringify(value: unknown): string {
-  if (typeof value === "string") return value;
-  try {
-    return JSON.stringify(value);
-  } catch {
-    return String(value);
-  }
-}
-
-/**
  * `String(someError)` / plain `JSON.stringify(someError)` often collapse down to
  * a useless "[object Object]" or "{}": Error's own properties (message, stack,
  * name) are non-enumerable (so plain JSON.stringify drops them), and some
@@ -77,14 +41,4 @@ export function describeError(e: unknown): string {
   } catch {
     return String(e);
   }
-}
-
-export function debugLog(...args: unknown[]): void {
-  console.log("[Moulinette]", ...args);
-  const line = document.createElement("div");
-  const time = new Date().toISOString().slice(11, 23);
-  line.textContent = `${time}  ${args.map(stringify).join(" ")}`;
-  const p = panel();
-  p.appendChild(line);
-  p.scrollTop = p.scrollHeight;
 }

@@ -44,7 +44,7 @@ export class BBCSoundsCollection implements MediaCollection {
         const meta: MediaAsset["meta"] = [];
         if (s.duration) meta.push({ icon: "fa-regular fa-stopwatch", text: prettyDuration(s.duration / 1000), hint: "Duration" });
         if (s.fileSizes?.mp3FileSize) {
-          meta.push({ icon: "fa-regular fa-weight-hanging", text: prettyFilesize(s.fileSizes.mp3FileSize, 0), hint: "File size" });
+          meta.push({ icon: "fa-solid fa-weight-hanging", text: prettyFilesize(s.fileSizes.mp3FileSize, 0), hint: "File size" });
         }
         return {
           id: s.id,

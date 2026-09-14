@@ -1,7 +1,7 @@
 import OBR, { buildImage, buildImageUpload, Image as ObrImage, ImageAssetType } from "@owlbear-rodeo/sdk";
 import { DEFAULT_SOURCE_PIXELS_PER_CELL } from "../constants";
 import { loadImage } from "../utils";
-import { debugLog, describeError } from "../debug";
+import { describeError } from "../debug";
 
 function mimeFromUrl(url: string): string {
   // Game-icons.net and Font Awesome are added via a `data:` URL (recolored SVG or
@@ -119,7 +119,6 @@ export async function uploadImageToScene(
   blob: Blob,
   options: { name: string; size: number; typeHint?: ImageAssetType },
 ): Promise<void> {
-  debugLog("uploadImageToScene: blob type =", blob.type, "size =", blob.size, "bytes; options =", options);
   const ext = EXT_FROM_MIME[blob.type] ?? "png";
   const file = new File([blob], `${options.name}.${ext}`, { type: blob.type });
   const upload = buildImageUpload(file)
@@ -127,13 +126,10 @@ export async function uploadImageToScene(
     .dpi(options.size)
     .offset({ x: options.size / 2, y: options.size / 2 })
     .build();
-  debugLog("uploadImageToScene: calling OBR.assets.uploadImages, typeHint =", options.typeHint);
   try {
     await OBR.assets.uploadImages([upload], options.typeHint);
-    debugLog("uploadImageToScene: OBR.assets.uploadImages resolved OK");
   } catch (e) {
-    debugLog("uploadImageToScene: OBR.assets.uploadImages THREW:", describeError(e));
-    console.error("[Moulinette] uploadImageToScene: OBR.assets.uploadImages threw", e);
+    console.error("[Moulinette] uploadImageToScene: OBR.assets.uploadImages threw", describeError(e));
     throw e;
   }
 }

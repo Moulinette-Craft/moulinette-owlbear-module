@@ -1,5 +1,4 @@
 import { MOU_API } from "../constants";
-import { debugLog } from "../debug";
 import { svgToPngBlob } from "../utils";
 
 export interface GameIcon {
@@ -66,16 +65,13 @@ export const GameIconsClient = {
    * 400s on the full https://game-icons.net/... URL.
    */
   async recolor(iconId: string, fgColor: string, bgColor: string): Promise<string> {
-    debugLog("GameIconsClient.recolor: POST", `${MOU_API}/gameicons/download`, "body:", { url: iconId });
     const response = await fetch(`${MOU_API}/gameicons/download`, {
       method: "POST",
       headers: { Accept: "application/json", "Content-Type": "application/json" },
       body: JSON.stringify({ url: iconId }),
     });
-    debugLog("GameIconsClient.recolor: response status", response.status);
     if (!response.ok) throw new Error(`Failed to download icon: HTTP ${response.status}`);
     let svg = await response.text();
-    debugLog("GameIconsClient.recolor: raw svg (first 150 chars):", svg.slice(0, 150));
 
     if (fgColor.toLowerCase() !== "#ffffff" || bgColor) {
       const fg = fgColor || "#000000";
@@ -84,7 +80,6 @@ export const GameIconsClient = {
     }
     // Firefox needs explicit intrinsic dimensions to rasterize the SVG at a sane size.
     svg = svg.replace("<svg", `<svg width="${GameIconsClient.ICON_SIZE}" height="${GameIconsClient.ICON_SIZE}"`);
-    debugLog("GameIconsClient.recolor: final svg (first 150 chars):", svg.slice(0, 150));
 
     return svg;
   },
