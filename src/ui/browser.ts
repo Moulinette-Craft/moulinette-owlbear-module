@@ -26,7 +26,7 @@ export class MoulinetteBrowser {
   private collections: MediaCollection[];
   private cloudCollection: CloudCollection;
   private collection: MediaCollection;
-  private filters: SearchFilters = { searchTerms: "", wholeWord: false, type: AssetType.Map, creator: "", pack: "" };
+  private filters: SearchFilters = { searchTerms: "", wholeWord: false, type: AssetType.Map, creator: "", pack: "", onlySupported: false };
   private page = 0;
   private loadedAssets: MediaAsset[] = [];
   private totalCount = 0;
@@ -78,6 +78,13 @@ export class MoulinetteBrowser {
               <h2>Source</h2>
               <div id="mou-collections" class="mou-radio-list"></div>
             </section>
+            <section class="mou-filter-group" id="mou-scope-section" hidden>
+              <h2>Scope</h2>
+              <label class="mou-field mou-checkbox">
+                <input id="mou-only-supported" type="checkbox" ${this.filters.onlySupported ? "checked" : ""} />
+                Only content I have access to (supported creators)
+              </label>
+            </section>
             <section class="mou-filter-group">
               <h2>Type</h2>
               <div id="mou-types" class="mou-radio-list"></div>
@@ -125,6 +132,11 @@ export class MoulinetteBrowser {
 
     this.el<HTMLInputElement>("#mou-wholeword").addEventListener("change", (e) => {
       this.filters.wholeWord = (e.target as HTMLInputElement).checked;
+      this.runSearch();
+    });
+
+    this.el<HTMLInputElement>("#mou-only-supported").addEventListener("change", (e) => {
+      this.filters.onlySupported = (e.target as HTMLInputElement).checked;
       this.runSearch();
     });
 
@@ -195,6 +207,20 @@ export class MoulinetteBrowser {
       this.refreshAccountWidget();
       this.runSearch();
     });
+  }
+
+  /** Shows/hides the "Scope" section (currently just "only content I have
+   * access to") - only meaningful for Moulinette Cloud, so hidden for every
+   * other source. Unlike Source/Type, this doesn't reset the underlying filter
+   * value when hidden: it's a sticky preference (persisted via setLastSearch(),
+   * see runSearch()) that should still be there the next time Cloud is
+   * selected again, or the browser is reopened - not silently wiped by
+   * browsing another source in between. Collections other than Cloud never
+   * read `filters.onlySupported` anyway, so leaving it set while hidden is
+   * harmless. */
+  private updateScopeVisibility(): void {
+    this.el<HTMLElement>("#mou-scope-section").hidden = this.collection.id !== this.cloudCollection.id;
+    this.el<HTMLInputElement>("#mou-only-supported").checked = this.filters.onlySupported;
   }
 
   /** Opens an overlay listing every subscription/membership tied to the connected
@@ -414,6 +440,7 @@ export class MoulinetteBrowser {
     }
     this.renderTypesList();
     this.renderAdvancedSettings();
+    this.updateScopeVisibility();
     await this.runSearch();
   }
 

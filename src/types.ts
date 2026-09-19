@@ -59,6 +59,15 @@ export interface SearchFilters {
   type: AssetType;
   creator: string; // "" = any
   pack: string; // "" = any
+  /**
+   * Restricts Moulinette Cloud results to content from creators the connected
+   * account actively supports (mirrors the FoundryVTT module's
+   * `CloudMode.ONLY_SUPPORTED_CREATORS` / "cloud-supported" scope) instead of
+   * the default "discover" mode, which also surfaces locked previews from
+   * creators the account doesn't support. Ignored by collections other than
+   * Moulinette Cloud.
+   */
+  onlySupported: boolean;
 }
 
 export interface Facet {

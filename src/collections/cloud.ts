@@ -118,6 +118,7 @@ interface FacetCache {
   searchTerms?: string;
   type?: AssetType;
   creator?: string;
+  onlySupported?: boolean;
   types?: { type: AssetType; count: number }[];
   creators?: Facet[];
   /** Raw, one entry per (creator, pack) - not yet merged/filtered, since that depends on the currently selected creator. */
@@ -191,7 +192,8 @@ export class CloudCollection implements MediaCollection {
     // re-requested when something that actually changes them changed -
     // otherwise the last known facet values are reused as-is.
     const hasSearched = this.cache.searchTerms !== undefined;
-    const termsChanged = !hasSearched || this.cache.searchTerms !== filters.searchTerms;
+    const modeChanged = this.cache.onlySupported !== filters.onlySupported;
+    const termsChanged = !hasSearched || modeChanged || this.cache.searchTerms !== filters.searchTerms;
     const typeChanged = termsChanged || this.cache.type !== filters.type;
     const creatorChanged = typeChanged || this.cache.creator !== filters.creator;
     let facets = { types: typeChanged, creators: typeChanged, packs: creatorChanged };
@@ -220,6 +222,7 @@ export class CloudCollection implements MediaCollection {
           wholeWord: filters.wholeWord,
           page: this.nextRawPage,
           facets,
+          mode: filters.onlySupported ? "cloud-supported" : "cloud-all",
         });
         this.nextRawPage++;
         facets = { types: false, creators: false, packs: false }; // only ever needed once per logical search
@@ -251,6 +254,7 @@ export class CloudCollection implements MediaCollection {
       this.cache.searchTerms = filters.searchTerms;
       this.cache.type = filters.type;
       this.cache.creator = filters.creator;
+      this.cache.onlySupported = filters.onlySupported;
 
       const packsForCreator = filters.creator ? mergePacks((this.cache.packs ?? []).filter((p) => p.creator === filters.creator)) : [];
 

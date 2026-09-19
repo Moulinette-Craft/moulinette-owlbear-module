@@ -56,11 +56,17 @@ export const MoulinetteClient = {
   },
 
   /**
-   * Server-side, paginated catalog search (same endpoint and "Cloud (discover)"
-   * mode the FoundryVTT module uses, `scope.mode: "cloud-all"`) - unlike
-   * `/all-assets`, this returns one page (~100 assets) at a time, each already
-   * carrying its full `pack` object, plus optional facets (`types`, `creators`,
-   * `packs`) computed server-side when requested.
+   * Server-side, paginated catalog search (same endpoint the FoundryVTT module
+   * uses) - unlike `/all-assets`, this returns one page (~100 assets) at a time,
+   * each already carrying its full `pack` object, plus optional facets
+   * (`types`, `creators`, `packs`) computed server-side when requested.
+   *
+   * `mode` picks which of the FoundryVTT module's `CloudMode` scopes to search:
+   * "cloud-all" is its "Cloud (discover)" mode (everything, including locked
+   * previews from creators the account doesn't support), "cloud-supported" its
+   * `ONLY_SUPPORTED_CREATORS` scope (only content from creators the account
+   * actively supports - never locked, since unsupported creators' content is
+   * excluded outright rather than shown as a locked preview).
    */
   async search(body: {
     searchTerms: string;
@@ -70,11 +76,13 @@ export const MoulinetteClient = {
     wholeWord: boolean;
     page: number;
     facets: { types: boolean; creators: boolean; packs: boolean };
+    mode: "cloud-all" | "cloud-supported";
   }): Promise<Record<string, any>> {
+    const { mode, ...rest } = body;
     return request("/search", "POST", undefined, {
-      ...body,
+      ...rest,
       folder: null,
-      scope: { session: getSessionId(), mode: "cloud-all" },
+      scope: { session: getSessionId(), mode },
     });
   },
 };
