@@ -599,8 +599,29 @@ export class MoulinetteBrowser {
       this.collection.resolveMediaKind(asset).then((kind) => {
         if (!kind?.animated) return;
         badges.appendChild(this.createBadge("fa-solid fa-film", "Animated", "This map has a video background - it can be downloaded, but not added to the scene."));
-        // Owlbear scene images aren't video - there's nothing "add" could do here.
-        actions.querySelector('[data-action-id="add"]')?.remove();
+        // Owlbear scene images aren't video - there's nothing "add" could do
+        // here. Swapped for a standalone info button rather than just removed,
+        // so the reason isn't only discoverable by hovering the "Animated"
+        // badge - a fresh button (not a repurposed one) since the original
+        // "add" button already has its own click listener bound in the loop
+        // above, tied to the "add" action.
+        const addBtn = actions.querySelector<HTMLButtonElement>('[data-action-id="add"]');
+        if (addBtn) {
+          const infoBtn = document.createElement("button");
+          infoBtn.className = "mou-action-btn";
+          infoBtn.title = "Why can't this be added to the scene?";
+          infoBtn.dataset.actionId = "why-not-supported";
+          infoBtn.innerHTML = `<i class="fa-solid fa-circle-question"></i>`;
+          infoBtn.addEventListener("click", () => {
+            if (typeof OBR !== "undefined") {
+              OBR.notification.show(
+                "This map has a video background - Owlbear scene images can't be animated, so it can't be added directly. Use Download instead to save the video file.",
+                "INFO",
+              );
+            }
+          });
+          addBtn.replaceWith(infoBtn);
+        }
       });
     }
 
