@@ -3,6 +3,7 @@ import { MoulinetteClient } from "../clients/moulinette";
 import { AssetAction, AssetType, Facet, MediaAsset, MediaCollection, SearchFilters, SearchResults } from "../types";
 import { prettyDuration, prettyFilesize, prettyMediaName } from "../utils";
 import { uploadImageToScene } from "../obr/scene";
+import { Auth } from "../auth";
 import { describeError } from "../debug";
 
 // Asset type ids used by the Moulinette Cloud API (shared with the FoundryVTT
@@ -294,7 +295,10 @@ export class CloudCollection implements MediaCollection {
     if (asset.packId) {
       actions.push({ id: "browse-pack", name: "Browse this pack", icon: "fa-solid fa-box" });
     }
-    if (!asset.locked) {
+    // Nudges an anonymous/unconnected visitor to go support the creator - not
+    // needed once the person is signed in and already has download access,
+    // since that access already implies some form of support (patron, gifted...).
+    if (!asset.locked && !Auth.isConnected()) {
       actions.push({ id: "support", name: "Visit creator", icon: "fa-solid fa-hands-praying", successMessage: "Opened the creator's page in a new tab." });
     }
     return actions;
