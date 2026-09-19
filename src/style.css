@@ -106,6 +106,19 @@ body {
   font-size: 13px;
 }
 
+.mou-account-name {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.mou-account-name:hover {
+  color: var(--mou-text);
+  text-decoration: underline;
+}
+
 .mou-patron {
   color: var(--mou-accent);
 }
@@ -480,5 +493,74 @@ body {
 .mou-lightbox-close:hover {
   color: var(--mou-danger);
   border-color: var(--mou-danger);
+}
+
+.mou-subscriptions-overlay {
+  cursor: default;
+}
+
+.mou-subscriptions {
+  background: var(--mou-bg-card);
+  border: 1px solid var(--mou-border);
+  border-radius: 8px;
+  padding: 28px;
+  width: 420px;
+  max-width: 100%;
+  max-height: 100%;
+  overflow-y: auto;
+  position: relative;
+  color: var(--mou-text);
+}
+
+.mou-subscriptions h2 {
+  margin: 0 0 12px;
+  font-size: 16px;
+}
+
+.mou-subscriptions h3 {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--mou-text-dim);
+  margin: 18px 0 6px;
+}
+
+.mou-account-vanity {
+  color: var(--mou-text-dim);
+  font-weight: normal;
+  font-size: 13px;
+}
+
+.mou-subscriptions ul {
+  margin: 0;
+  padding: 0;
+  font-size: 13px;
+}
+
+.mou-subscriptions li {
+  margin-bottom: 4px;
+}
+
+/* Bulleted lists (Patreon/Discord subscriptions, gifts) - the single-line
+   status row (.mou-subs-status) already leads with a heart icon, so it's kept
+   unbulleted instead. Flex/grid items never render list markers regardless of
+   list-style, so this can't share the flex layout those used to use. */
+.mou-subs-list {
+  list-style: disc;
+  /* "outside" (the default) can let the marker glyph overflow past the ul's own
+     left edge - "inside" folds it into the text flow instead, so the bullet
+     starts flush with the ul's own left edge, lining up with the h2/h3 titles
+     above (same container, no left padding/margin of their own). */
+  list-style-position: inside;
+  padding-left: 0;
+}
+
+.mou-subs-status {
+  list-style: none;
+}
+
+.mou-subs-none {
+  color: var(--mou-text-dim);
+  font-size: 13px;
 }
 

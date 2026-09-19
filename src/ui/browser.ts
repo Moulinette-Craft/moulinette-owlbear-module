@@ -8,7 +8,7 @@ import { GameIconsCollection } from "../collections/gameicons";
 // uncommenting the imports and the two entries in the constructor below.
 // import { FontAwesomeCollection } from "../collections/fontawesome";
 // import { BBCSoundsCollection } from "../collections/bbcsounds";
-import { Auth } from "../auth";
+import { Auth, MoulinetteUser } from "../auth";
 import { getAdvancedSettings, getLastSearch, setAdvancedSettings, setLastSearch } from "../storage";
 import { debounce, escapeHtml, prettyNumber } from "../utils";
 import { MODAL_ID } from "../constants";
@@ -185,15 +185,68 @@ export class MoulinetteBrowser {
 
     const status = user.patron ? `<i class="fa-solid fa-heart"></i> Patron` : user.platinum ? `<i class="fa-solid fa-heart"></i> Platinum patron` : "";
     container.innerHTML = `
-      <span class="mou-account-name">${escapeHtml(String(user.fullName))}${status ? ` <span class="mou-patron">${status}</span>` : ""}</span>
+      <button class="mou-account-name" title="View your subscriptions">${escapeHtml(String(user.fullName))}</button>${status ? `<span class="mou-patron">${status}</span>` : ""}
       <button class="mou-btn mou-logout" title="Disconnect"><i class="fa-solid fa-sign-out-alt"></i></button>
     `;
+    container.querySelector(".mou-account-name")?.addEventListener("click", () => this.openSubscriptions(user));
     container.querySelector(".mou-logout")?.addEventListener("click", () => {
       Auth.disconnect();
       this.cloudCollection.invalidate();
       this.refreshAccountWidget();
       this.runSearch();
     });
+  }
+
+  /** Opens an overlay listing every subscription/membership tied to the connected
+   * account - the Owlbear counterpart of the FoundryVTT module's "MouUser" app
+   * (its user.hbs template lists the same fields: pledges, discordRoles, gifts). */
+  private openSubscriptions(user: MoulinetteUser): void {
+    const overlay = document.createElement("div");
+    overlay.className = "mou-lightbox mou-subscriptions-overlay";
+
+    const section = (title: string, rows: string[]): string =>
+      rows.length ? `<h3>${escapeHtml(title)}</h3><ul class="mou-subs-list">${rows.join("")}</ul>` : "";
+
+    const pledgeRows = (user.pledges ?? []).map(
+      (p) =>
+        `<li>${escapeHtml(p.vanity)}: ${escapeHtml(p.pledge)}${
+          p.paid !== undefined ? ` <i class="fa-solid fa-dollar-sign" title="${escapeHtml(String(p.paid))} $USD (${escapeHtml(String(p.days ?? 0))} days)"></i>` : ""
+        }</li>`,
+    );
+    const discordRoleRows = (user.discordRoles ?? []).map((r) => `<li>${escapeHtml(r.guild)}: ${escapeHtml(r.name)}</li>`);
+    const giftRows = (user.gifts ?? []).map((g) => `<li>${escapeHtml(g.vanity)}: ${escapeHtml(g.tier)}</li>`);
+
+    const statusRow = user.patron
+      ? `<li><i class="fa-solid fa-heart"></i> Patron (${escapeHtml(user.patron)})</li>`
+      : user.platinum
+        ? `<li><i class="fa-solid fa-heart"></i> Platinum patron</li>`
+        : `<li class="mou-subs-none">Not currently a patron</li>`;
+
+    overlay.innerHTML = `
+      <div class="mou-subscriptions">
+        <button class="mou-lightbox-close" title="Close (Esc)"><i class="fa-solid fa-xmark"></i></button>
+        <h2>${escapeHtml(String(user.fullName ?? ""))}${user.vanity ? ` <span class="mou-account-vanity">(${escapeHtml(user.vanity)})</span>` : ""}</h2>
+        <ul class="mou-subs-status">${statusRow}</ul>
+        ${section("Patreon subscriptions", pledgeRows)}
+        ${section("Discord subscriptions", discordRoleRows)}
+        ${section("Gifts", giftRows)}
+        ${!pledgeRows.length && !discordRoleRows.length && !giftRows.length ? `<p class="mou-subs-none">No active subscription found on this account.</p>` : ""}
+      </div>
+    `;
+
+    const close = () => {
+      overlay.remove();
+      document.removeEventListener("keydown", onKeyDown);
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") close();
+    };
+    overlay.addEventListener("click", (e) => {
+      if (e.target === overlay) close();
+    });
+    overlay.querySelector(".mou-lightbox-close")?.addEventListener("click", close);
+    document.addEventListener("keydown", onKeyDown);
+    document.body.appendChild(overlay);
   }
 
   private async startLogin(source: "patreon" | "discord"): Promise<void> {

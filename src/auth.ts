@@ -11,9 +11,37 @@ function randomId(length = 26): string {
   return out;
 }
 
+export interface MoulinettePledge {
+  vanity: string;
+  pledge: string;
+  paid?: number;
+  days?: number;
+}
+
+export interface MoulinetteDiscordRole {
+  guild: string;
+  name: string;
+}
+
+export interface MoulinetteGift {
+  vanity: string;
+  tier: string;
+}
+
 export interface MoulinetteUser {
   patreon?: { name?: string; avatar?: string };
   discord?: { name?: string; avatar?: string };
+  fullName?: string;
+  vanity?: string;
+  patron?: string;
+  platinum?: boolean;
+  discord_user_id?: string;
+  user_id?: string;
+  /** Active Patreon pledges/subscriptions tied to this account. */
+  pledges?: MoulinettePledge[];
+  /** Discord server roles granted through a linked subscription (e.g. a booster/sub role). */
+  discordRoles?: MoulinetteDiscordRole[];
+  gifts?: MoulinetteGift[];
   [key: string]: unknown;
 }
 
