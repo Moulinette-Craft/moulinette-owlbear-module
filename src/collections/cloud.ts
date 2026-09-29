@@ -73,7 +73,7 @@ function toMediaAsset(raw: RawAsset): MediaAsset | null {
 
   const meta: MediaAsset["meta"] = [];
   if (type === AssetType.Audio && raw.audio) {
-    meta.push({ icon: "fa-regular fa-stopwatch", text: prettyDuration(raw.audio.duration), hint: "Duration" });
+    meta.push({ icon: "fa-solid fa-stopwatch", text: prettyDuration(raw.audio.duration), hint: "Duration" });
   }
   if ((type === AssetType.Image || type === AssetType.Map) && raw.size) {
     meta.push({
@@ -146,10 +146,7 @@ export class CloudCollection implements MediaCollection {
   name = "Moulinette Cloud";
   description =
     "Browse the full Moulinette Cloud marketplace - maps and images from every creator. \"Add\" uploads to your Owlbear asset library - drag it onto the map from the Assets panel to place it.";
-  // Audio is temporarily disabled (not removed) at the user's request, to keep
-  // the surface area small while iterating. Re-enable by adding AssetType.Audio
-  // back here.
-  supportedTypes = [AssetType.Map, AssetType.Image];
+  supportedTypes = [AssetType.Map, AssetType.Image, AssetType.Audio];
 
   private error: string | null = null;
   private cache: FacetCache = {};
@@ -282,7 +279,7 @@ export class CloudCollection implements MediaCollection {
         successMessage: "Opened the creator's page in a new tab.",
       });
     } else if (asset.type === AssetType.Audio) {
-      actions.push({ id: "play", name: "Play / stop", icon: "fa-solid fa-play-pause", primary: true });
+      actions.push({ id: "play", name: "Play / stop", icon: "fa-solid fa-play", primary: true });
     } else {
       actions.push({
         id: "add",

@@ -303,6 +303,58 @@ body {
   padding: 6px;
 }
 
+/* Sound effects have nothing worth showing as a big square thumbnail (just a
+   generic music-note glyph) and their name is what actually matters - a
+   compact horizontal row, one per line, gives the title far more width to
+   breathe than the square grid every other type uses. */
+.mou-results[data-type="audio"] {
+  grid-template-columns: 1fr;
+  gap: 4px;
+}
+
+.mou-results[data-type="audio"] .mou-asset {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px 4px 4px;
+}
+
+.mou-results[data-type="audio"] .mou-thumb {
+  width: 36px;
+  height: 36px;
+  flex: 0 0 auto;
+  border-radius: 6px;
+  font-size: 15px;
+}
+
+.mou-results[data-type="audio"] .mou-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0;
+}
+
+.mou-results[data-type="audio"] .mou-creator {
+  flex: 0 1 auto;
+  max-width: 30%;
+  padding: 0;
+}
+
+.mou-results[data-type="audio"] .mou-meta {
+  flex: 0 0 auto;
+  padding: 0;
+}
+
+.mou-results[data-type="audio"] .mou-actions {
+  flex: 0 0 auto;
+  margin-top: 0;
+  padding: 0;
+}
+
+.mou-results[data-type="audio"] .mou-action-btn {
+  flex: 0 0 auto;
+  width: 28px;
+}
+
 .mou-empty {
   grid-column: 1 / -1;
   text-align: center;

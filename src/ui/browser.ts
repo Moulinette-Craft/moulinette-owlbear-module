@@ -2,12 +2,12 @@ import OBR from "@owlbear-rodeo/sdk";
 import { AssetAction, AssetType, MediaAsset, MediaCollection, SearchFilters } from "../types";
 import { CloudCollection } from "../collections/cloud";
 import { GameIconsCollection } from "../collections/gameicons";
-// Font Awesome and BBC Sound Effects are temporarily disabled (not removed - the
-// collection files are untouched, just not registered below) at the user's
-// request, to keep the surface area small while debugging. Re-enable by
-// uncommenting the imports and the two entries in the constructor below.
+import { BBCSoundsCollection } from "../collections/bbcsounds";
+// Font Awesome is temporarily disabled (not removed - the collection file is
+// untouched, just not registered below) at the user's request, to keep the
+// surface area small while debugging. Re-enable by uncommenting the import and
+// adding an entry to the constructor below.
 // import { FontAwesomeCollection } from "../collections/fontawesome";
-// import { BBCSoundsCollection } from "../collections/bbcsounds";
 import { Auth, MoulinetteUser } from "../auth";
 import { getAdvancedSettings, getLastSearch, setAdvancedSettings, setLastSearch } from "../storage";
 import { debounce, escapeHtml, prettyNumber } from "../utils";
@@ -38,7 +38,7 @@ export class MoulinetteBrowser {
   constructor(root: HTMLElement) {
     this.root = root;
     this.cloudCollection = new CloudCollection();
-    this.collections = [this.cloudCollection, new GameIconsCollection()];
+    this.collections = [this.cloudCollection, new GameIconsCollection(), new BBCSoundsCollection()];
     this.collection = this.collections[0];
     this.filters.type = this.collection.supportedTypes[0];
 
@@ -720,6 +720,10 @@ export class MoulinetteBrowser {
     this.root.querySelectorAll<HTMLElement>(".mou-asset").forEach((card) => {
       const playing = card.dataset.id === this.currentAudioAssetId;
       card.classList.toggle("mou-playing", playing);
+      // Font Awesome Free has no combined "play/pause" glyph (Pro-only) - swap
+      // between the separate fa-play/fa-pause icons instead, to reflect state.
+      const icon = card.querySelector<HTMLElement>('[data-action-id="play"] i');
+      if (icon) icon.className = playing ? "fa-solid fa-pause" : "fa-solid fa-play";
     });
   }
 

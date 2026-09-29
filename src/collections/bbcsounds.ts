@@ -42,7 +42,7 @@ export class BBCSoundsCollection implements MediaCollection {
       const assets: MediaAsset[] = sounds.map((s) => {
         const url = `https://sound-effects-media.bbcrewind.co.uk/mp3/${s.id}.mp3`;
         const meta: MediaAsset["meta"] = [];
-        if (s.duration) meta.push({ icon: "fa-regular fa-stopwatch", text: prettyDuration(s.duration / 1000), hint: "Duration" });
+        if (s.duration) meta.push({ icon: "fa-solid fa-stopwatch", text: prettyDuration(s.duration / 1000), hint: "Duration" });
         if (s.fileSizes?.mp3FileSize) {
           meta.push({ icon: "fa-solid fa-weight-hanging", text: prettyFilesize(s.fileSizes.mp3FileSize, 0), hint: "File size" });
         }
@@ -68,7 +68,7 @@ export class BBCSoundsCollection implements MediaCollection {
 
   getActions(): AssetAction[] {
     return [
-      { id: "play", name: "Play / stop", icon: "fa-solid fa-play-pause", primary: true },
+      { id: "play", name: "Play / stop", icon: "fa-solid fa-play", primary: true },
       { id: "download", name: "Download", icon: "fa-solid fa-cloud-arrow-down" },
     ];
   }
