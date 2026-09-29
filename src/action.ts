@@ -1,5 +1,6 @@
 import OBR from "@owlbear-rodeo/sdk";
 import { MODAL_ID } from "./constants";
+import { AudioBridgeMessage, openAudioChannel } from "./audioBridge";
 
 // A large fixed size rather than fullScreen: true - takes up a good part of the
 // screen without covering the whole room. Owlbear's modal has no drag-to-resize
@@ -8,6 +9,54 @@ import { MODAL_ID } from "./constants";
 // "resizable" as the platform allows for a modal.
 const MODAL_WIDTH = 1400;
 const MODAL_HEIGHT = 900;
+
+/**
+ * Owns the actual <audio> element for sound-effect previews (see
+ * src/audioBridge.ts for why it lives here rather than in the browser modal)
+ * - relays play/stop commands from whichever modal instance is currently
+ * open, if any, and reports state changes back so a (re)opened modal can
+ * show the right play/pause icon for whatever's already playing.
+ */
+function initAudioHost(): void {
+  const audio = document.getElementById("mou-audio") as HTMLAudioElement;
+  const channel = openAudioChannel();
+  let currentAssetId: string | null = null;
+
+  const broadcastState = () => {
+    channel.postMessage({ type: "state", assetId: currentAssetId } satisfies AudioBridgeMessage);
+  };
+
+  channel.onmessage = (event: MessageEvent<AudioBridgeMessage>) => {
+    const msg = event.data;
+    if (msg.type === "play") {
+      currentAssetId = msg.assetId;
+      audio.src = msg.url;
+      audio
+        .play()
+        .catch(() => {
+          currentAssetId = null;
+        })
+        .finally(broadcastState);
+    } else if (msg.type === "stop") {
+      audio.pause();
+      currentAssetId = null;
+      broadcastState();
+    } else if (msg.type === "get-state") {
+      broadcastState();
+    }
+  };
+
+  audio.addEventListener("ended", () => {
+    currentAssetId = null;
+    broadcastState();
+  });
+}
+
+// Doesn't need OBR to be ready - the BroadcastChannel and <audio> element
+// work independently of the SDK, and starting this as early as possible means
+// a "play" message sent right after the popover first opens has somewhere to
+// land instead of racing OBR.onReady.
+initAudioHost();
 
 /**
  * Owlbear Rodeo's toolbar action can only open a fixed-size popover (see
@@ -20,7 +69,9 @@ const MODAL_HEIGHT = 900;
  * fresh on every click (found by trial and error: opening the modal directly in
  * `OBR.onReady` fired once, whenever the room first loaded the iframe, and never
  * again on later clicks). `onOpenChange` fires every time the popover is actually
- * shown, so the modal reliably (re)opens on every click instead.
+ * shown, so the modal reliably (re)opens on every click instead. initAudioHost()
+ * above relies on this same persistence for sound playback to survive the modal
+ * being closed.
  */
 OBR.onReady(() => {
   OBR.action.onOpenChange((isOpen) => {

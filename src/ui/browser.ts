@@ -13,6 +13,7 @@ import { getAdvancedSettings, getLastSearch, setAdvancedSettings, setLastSearch 
 import { debounce, escapeHtml, prettyNumber } from "../utils";
 import { MODAL_ID } from "../constants";
 import { describeError } from "../debug";
+import { AudioBridgeMessage, openAudioChannel } from "../audioBridge";
 
 const TYPE_LABELS: Record<AssetType, { label: string; icon: string }> = {
   [AssetType.Map]: { label: "Maps", icon: "fa-solid fa-map" },
@@ -34,6 +35,9 @@ export class MoulinetteBrowser {
   private noMore = false;
   private observer?: IntersectionObserver;
   private currentAudioAssetId: string | null = null;
+  // Sound playback itself lives in the toolbar action's popover, not this
+  // modal, so it keeps going after the modal is closed - see src/audioBridge.ts.
+  private audioChannel: BroadcastChannel;
 
   constructor(root: HTMLElement) {
     this.root = root;
@@ -52,12 +56,23 @@ export class MoulinetteBrowser {
       this.collection = savedCollection;
       this.filters = savedCollection.supportedTypes.includes(saved.filters.type) ? saved.filters : { ...saved.filters, type: savedCollection.supportedTypes[0] };
     }
+
+    this.audioChannel = openAudioChannel();
+    this.audioChannel.onmessage = (event: MessageEvent<AudioBridgeMessage>) => {
+      if (event.data.type !== "state") return;
+      this.currentAudioAssetId = event.data.assetId;
+      this.updatePlayButtons();
+    };
   }
 
   async mount(): Promise<void> {
     this.renderShell();
     await this.refreshAccountWidget();
     await this.selectCollection(this.collection.id, /*initial*/ true);
+    // Learn whether a sound is already playing from a previous session with
+    // this modal (or is still going from before it was last closed), so the
+    // right card can show as playing once results come in.
+    this.audioChannel.postMessage({ type: "get-state" } satisfies AudioBridgeMessage);
   }
 
   // ---------------------------------------------------------------- shell --
@@ -110,7 +125,6 @@ export class MoulinetteBrowser {
             </div>
           </main>
         </div>
-        <audio id="mou-audio"></audio>
       </div>
     `;
 
@@ -147,12 +161,6 @@ export class MoulinetteBrowser {
 
     this.renderCollectionsList();
     this.renderAdvancedSettings();
-
-    const audio = this.el<HTMLAudioElement>("#mou-audio");
-    audio.addEventListener("ended", () => {
-      this.currentAudioAssetId = null;
-      this.updatePlayButtons();
-    });
 
     // A fullScreen OBR.modal replaces the entire Owlbear UI with no host-provided
     // close button - without this, there would be no way back to the room at all.
@@ -703,14 +711,12 @@ export class MoulinetteBrowser {
   }
 
   private async togglePlay(asset: MediaAsset): Promise<void> {
-    const audio = this.el<HTMLAudioElement>("#mou-audio");
-    if (this.currentAudioAssetId === asset.id && !audio.paused) {
-      audio.pause();
+    if (this.currentAudioAssetId === asset.id) {
+      this.audioChannel.postMessage({ type: "stop" } satisfies AudioBridgeMessage);
       this.currentAudioAssetId = null;
     } else {
       const url = this.collection.getPlaybackUrl ? await this.collection.getPlaybackUrl(asset) : asset.previewUrl;
-      audio.src = url;
-      await audio.play();
+      this.audioChannel.postMessage({ type: "play", assetId: asset.id, url } satisfies AudioBridgeMessage);
       this.currentAudioAssetId = asset.id;
     }
     this.updatePlayButtons();
