@@ -332,10 +332,24 @@ export class CloudCollection implements MediaCollection {
     if (!promise) {
       promise = (async () => {
         const full = await MoulinetteClient.getAsset(asset.id);
+        if (!full.base_url || !full.file_url) {
+          console.error(`Moulinette | Asset ${asset.id} returned no file location (locked/inaccessible?)`, full);
+          return null;
+        }
         const sceneUrl = `${full.base_url}/${full.file_url}`;
         let sceneDoc: any;
         try {
-          sceneDoc = await fetch(sceneUrl).then((r) => r.json());
+          const response = await fetch(sceneUrl);
+          if (!response.ok) {
+            console.error(`Moulinette | Failed to download scene JSON for asset ${asset.id}: HTTP ${response.status}`);
+            return null;
+          }
+          const contentType = response.headers.get("content-type") ?? "";
+          if (!contentType.includes("json")) {
+            console.error(`Moulinette | Scene JSON for asset ${asset.id} was not JSON (content-type: ${contentType || "unknown"})`);
+            return null;
+          }
+          sceneDoc = await response.json();
         } catch (e) {
           console.error(`Moulinette | Failed to download/parse scene JSON for asset ${asset.id}`, describeError(e));
           return null;

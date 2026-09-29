@@ -622,7 +622,7 @@ export class MoulinetteBrowser {
     }
     card.appendChild(actions);
 
-    if (asset.flags.isScene && this.collection.resolveMediaKind) {
+    if (asset.flags.isScene && !asset.locked && this.collection.resolveMediaKind) {
       this.collection.resolveMediaKind(asset).then((kind) => {
         if (!kind?.animated) return;
         badges.appendChild(this.createBadge("fa-solid fa-film", "Animated", "This map has a video background - it can be downloaded, but not added to the scene."));
@@ -751,10 +751,25 @@ export class MoulinetteBrowser {
     const isVideo = ["mp4", "webm", "mov", "m4v"].includes(url.split("?")[0].split(".").pop()?.toLowerCase() ?? "");
     const overlay = document.createElement("div");
     overlay.className = "mou-lightbox";
-    overlay.innerHTML = `
-      <button class="mou-lightbox-close" title="Close (Esc)"><i class="fa-solid fa-xmark"></i></button>
-      ${isVideo ? `<video src="${url}" autoplay loop muted controls></video>` : `<img src="${url}" alt="${escapeHtml(name)}" />`}
-    `;
+    const closeBtn = document.createElement("button");
+    closeBtn.className = "mou-lightbox-close";
+    closeBtn.title = "Close (Esc)";
+    closeBtn.innerHTML = `<i class="fa-solid fa-xmark"></i>`;
+    overlay.appendChild(closeBtn);
+    if (isVideo) {
+      const video = document.createElement("video");
+      video.src = url;
+      video.autoplay = true;
+      video.loop = true;
+      video.muted = true;
+      video.controls = true;
+      overlay.appendChild(video);
+    } else {
+      const img = document.createElement("img");
+      img.src = url;
+      img.alt = name;
+      overlay.appendChild(img);
+    }
     const close = () => {
       overlay.remove();
       document.removeEventListener("keydown", onKeyDown);

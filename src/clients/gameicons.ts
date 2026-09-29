@@ -10,10 +10,13 @@ export interface GameIcon {
 
 const ALGOLIA_ENDPOINT = "https://9hq1yxukvc-3.algolianet.com/1/indexes/*/queries?x-algolia-application-id=9HQ1YXUKVC&x-algolia-api-key=fa437c6f1fcba0f93608721397cd515d";
 
+/**
+ * Strips HTML tags without ever parsing the string as HTML (no innerHTML
+ * assignment) - Chrome will fire an <img onerror> even on a detached element
+ * built that way, so this can't be trusted with third-party text.
+ */
 function extractText(html: string): string {
-  const span = document.createElement("span");
-  span.innerHTML = html;
-  return span.textContent || span.innerText || "";
+  return html.replace(/<[^>]*>/g, "");
 }
 
 function titleCase(s: string): string {
