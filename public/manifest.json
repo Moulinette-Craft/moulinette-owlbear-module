@@ -1,9 +1,9 @@
 {
   "name": "Moulinette Media Search",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "manifest_version": 1,
   "author": "Sven Werlen",
-  "description": "Search, preview and drop maps, images, icons and sound effects from Moulinette Cloud.",
+  "description": "Search, preview and drop maps, images, icons, sound effects and SoundPads from Moulinette Cloud.",
   "icon": "https://moulinette-craft.github.io/moulinette-owlbear-module/icon.svg",
   "action": {
     "title": "Moulinette Media Search",

@@ -14,6 +14,10 @@ scene, without leaving the game.
 - Search and preview sound effects from **[BBC Sound Effects](https://sound-effects.bbcrewind.co.uk/)**
   (non-commercial use, see their [licensing](https://sound-effects.bbcrewind.co.uk/licensing)),
   played locally in your own browser.
+- A dedicated **SoundPads & SoundBoards** panel for Tabletop Audio and Michael Ghelfi -
+  opens as its own window docked to the screen edge (minimizable, stays open while you
+  keep using the rest of Owlbear) with multiple tracks playable at once, looping ambience
+  included.
 
 ## Differences from the FoundryVTT module
 
