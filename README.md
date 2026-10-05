@@ -16,8 +16,8 @@ scene, without leaving the game.
   played locally in your own browser.
 - A dedicated **SoundPads & SoundBoards** panel for Tabletop Audio and Michael Ghelfi -
   opens as its own window docked to the screen edge (minimizable, stays open while you
-  keep using the rest of Owlbear) with multiple tracks playable at once, looping ambience
-  included.
+  keep using the rest of Owlbear) with multiple tracks playable at once, alternate
+  versions of a music (e.g. ambience only) and a per-sound loop toggle.
 
 ## Differences from the FoundryVTT module
 
