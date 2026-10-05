@@ -1,12 +1,16 @@
 import { defineConfig } from "vite";
 import { resolve } from "node:path";
 
-// Two entry points are built:
-//  - index.html : the full browser UI, opened as a fullscreen OBR.modal
-//  - action.html: the tiny page behind the toolbar action icon. Owlbear Rodeo
+// Three entry points are built:
+//  - index.html     : the full browser UI, opened as a fullscreen OBR.modal
+//  - action.html    : the tiny page behind the toolbar action icon. Owlbear Rodeo
 //    extensions can only declare a fixed-size popover as their action, so this
 //    page's only job is to immediately open the fullscreen modal and close
 //    the popover behind it (see src/action.ts).
+//  - soundboard.html: the SoundPads & SoundBoards panel, opened as its own
+//    OBR.popover (not nested inside index.html's modal) so it can stay
+//    docked to the screen edge and open at the same time as - instead of on
+//    top of - the rest of Owlbear's own UI (see src/soundboardMain.ts).
 export default defineConfig({
   base: "./",
   build: {
@@ -14,6 +18,7 @@ export default defineConfig({
       input: {
         main: resolve(__dirname, "index.html"),
         action: resolve(__dirname, "action.html"),
+        soundboard: resolve(__dirname, "soundboard.html"),
       },
     },
   },

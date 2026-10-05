@@ -616,3 +616,321 @@ body {
   font-size: 13px;
 }
 
+/* Soundboard: a curated Tabletop Audio / Michael Ghelfi Studios panel - its
+   own page (soundboard.html/src/soundboardMain.ts), opened as a separate
+   OBR.popover docked to the screen's left edge (see browser.ts's
+   openSoundboard()), not nested inside the browse modal - so it can stay
+   open and pinned while the GM keeps using the rest of Owlbear normally. Any
+   number of tracks can play at once, unlike the regular asset grid's single
+   "preview" player (see src/ui/soundboard.ts). */
+/* The popover iframe itself is requested wider than the panel (see
+   SOUNDBOARD_SHADOW_MARGIN in constants.ts) so the panel's own drop shadow -
+   Owlbear's own popover chrome is turned off via hidePaper, so nothing else
+   provides one - has empty, transparent iframe space to its right to render
+   into instead of being clipped at the iframe's edge. .mou-sb-body makes
+   that reserved margin see-through rather than a solid block of color -
+   overrides the shared `body { background: var(--mou-bg) }` rule by class
+   specificity, scoped to this page only (action.html/index.html still want
+   their normal opaque background). */
+.mou-sb-body {
+  background: transparent;
+}
+
+.mou-sb-page {
+  /* 100vh rather than 100% - see the identical note on .mou-app above: a pure
+     height:100% chain breaks if any ancestor (including whatever Owlbear's
+     own popover iframe wrapper does) doesn't resolve to a real height. */
+  height: 100vh;
+  /* Set from JS (soundboardMain.ts) to SOUNDBOARD_PANEL_WIDTH - the 320px
+     fallback here only matters if that ever fails to run. */
+  width: var(--mou-sb-panel-width, 320px);
+  display: flex;
+  flex-direction: column;
+  background: var(--mou-bg-alt);
+  box-shadow: 8px 0 24px rgba(0, 0, 0, 0.5);
+}
+
+/* .mou-sb-page/.mou-sb-minimized (toggled between via soundboardMain.ts's
+   minimize()/restore()) both set their own `display` - an author-origin
+   rule, which beats the browser's native `[hidden] { display:none }` UA rule
+   at equal importance regardless of selector specificity (see the identical
+   footgun noted elsewhere in this file), so toggling `.hidden` on either
+   would silently do nothing without this explicit override. */
+.mou-sb-page[hidden],
+.mou-sb-minimized[hidden] {
+  display: none;
+}
+
+/* The small docked tab left behind when minimized (see
+   SOUNDBOARD_MINIMIZED_SIZE in constants.ts) - the popover itself is resized
+   down to exactly fill it, so no shadow-margin trick is needed here. */
+.mou-sb-minimized {
+  width: 100%;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--mou-bg-alt);
+  border: none;
+  color: var(--mou-accent);
+  font-size: 20px;
+  cursor: pointer;
+}
+
+.mou-sb-minimized:hover {
+  background: var(--mou-bg-card);
+}
+
+.mou-sb-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--mou-border);
+  flex: 0 0 auto;
+}
+
+.mou-sb-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.mou-sb-title {
+  font-weight: 600;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--mou-accent);
+}
+
+.mou-soundboard-content {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.mou-sb-creators {
+  display: flex;
+  border-bottom: 1px solid var(--mou-border);
+  flex: 0 0 auto;
+}
+
+.mou-sb-creator-tab {
+  flex: 1 1 auto;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--mou-text-dim);
+  padding: 8px 6px;
+  font-size: 11px;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mou-sb-creator-tab:hover {
+  color: var(--mou-text);
+}
+
+.mou-sb-creator-active {
+  color: var(--mou-accent);
+  border-bottom-color: var(--mou-accent);
+}
+
+.mou-sb-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--mou-border);
+  flex: 0 0 auto;
+}
+
+.mou-sb-toolbar input[type="search"] {
+  flex: 1 1 auto;
+  background: var(--mou-bg-card);
+  border: 1px solid var(--mou-border);
+  color: var(--mou-text);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-size: 12px;
+}
+
+.mou-sb-status {
+  padding: 60px 16px;
+  text-align: center;
+  color: var(--mou-text-dim);
+  font-size: 12px;
+}
+
+.mou-sb-error {
+  color: var(--mou-danger);
+}
+
+.mou-sb-categories {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 10px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--mou-border);
+  flex: 0 0 auto;
+}
+
+.mou-sb-categories:empty {
+  display: none;
+}
+
+/* A single-select toggle (click again to clear), like the original app's
+   `.categories a` - not an independent multi-select checkbox per category. */
+.mou-sb-category {
+  background: none;
+  border: none;
+  padding: 2px 0;
+  font-size: 11px;
+  text-transform: capitalize;
+  color: var(--mou-text-dim);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.mou-sb-category:hover {
+  color: var(--mou-text);
+}
+
+.mou-sb-category-active {
+  color: var(--mou-accent);
+}
+
+.mou-sb-results {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+
+.mou-sb-group {
+  border-bottom: 1px solid var(--mou-border);
+}
+
+.mou-sb-group-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: none;
+  border: none;
+  color: var(--mou-text);
+  padding: 8px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.mou-sb-group-header:hover {
+  background: var(--mou-bg-card);
+}
+
+.mou-sb-group-header i {
+  flex: 0 0 auto;
+  font-size: 11px;
+  color: var(--mou-text-dim);
+  width: 12px;
+}
+
+.mou-sb-group-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mou-sb-group-count {
+  flex: 0 0 auto;
+  color: var(--mou-text-dim);
+  font-size: 11px;
+}
+
+.mou-sb-tracks {
+  padding: 0 0 4px;
+}
+
+.mou-sb-track {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 12px 5px 28px;
+}
+
+.mou-sb-track:hover {
+  background: var(--mou-bg-card);
+}
+
+.mou-sb-track.mou-sb-playing {
+  background: rgba(232, 114, 9, 0.12);
+}
+
+.mou-sb-play {
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  background: var(--mou-bg-card);
+  border: 1px solid var(--mou-border);
+  color: var(--mou-text);
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  font-size: 9px;
+}
+
+.mou-sb-play:hover {
+  border-color: var(--mou-accent);
+  color: var(--mou-accent);
+}
+
+.mou-sb-track.mou-sb-playing .mou-sb-play {
+  background: var(--mou-accent);
+  border-color: var(--mou-accent);
+  color: var(--mou-accent-contrast);
+}
+
+.mou-sb-track-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mou-sb-track-duration {
+  flex: 0 0 auto;
+  font-size: 10px;
+  color: var(--mou-text-dim);
+}
+
+.mou-sb-footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-top: 1px solid var(--mou-border);
+  flex: 0 0 auto;
+}
+
+.mou-sb-volume-label {
+  color: var(--mou-text-dim);
+  font-size: 12px;
+}
+
+#mou-sb-global-volume {
+  flex: 1 1 auto;
+}
+

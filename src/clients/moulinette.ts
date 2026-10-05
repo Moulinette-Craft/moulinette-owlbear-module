@@ -56,6 +56,19 @@ export const MoulinetteClient = {
   },
 
   /**
+   * One-shot, un-paginated dump of every sound in a creator's Soundpad catalog
+   * (Tabletop Audio / Michael Ghelfi) - mirrors `MouSoundpadUtils.getSoundpadSounds()`
+   * in the FoundryVTT audio module (moulinette-audio-foundryvtt-module), which
+   * uses this same endpoint instead of the generic paginated `/search` precisely
+   * to avoid needing dozens of requests to list a whole catalog. `creator` is
+   * the exact display name Moulinette expects ("Tabletop Audio", "Michael Ghelfi"),
+   * not a facet id.
+   */
+  async getSoundpadSounds(creator: string): Promise<Record<string, any>[]> {
+    return request(`/soundpads/sounds/${encodeURIComponent(creator)}`, "GET", { session: getSessionId() });
+  },
+
+  /**
    * Server-side, paginated catalog search (same endpoint the FoundryVTT module
    * uses) - unlike `/all-assets`, this returns one page (~100 assets) at a time,
    * each already carrying its full `pack` object, plus optional facets

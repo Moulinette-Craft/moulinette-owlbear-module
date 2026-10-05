@@ -11,7 +11,7 @@ import { BBCSoundsCollection } from "../collections/bbcsounds";
 import { Auth, MoulinetteUser } from "../auth";
 import { getAdvancedSettings, getLastSearch, setAdvancedSettings, setLastSearch } from "../storage";
 import { debounce, escapeHtml, prettyNumber } from "../utils";
-import { MODAL_ID } from "../constants";
+import { MODAL_ID, SOUNDBOARD_POPOVER_ID, SOUNDBOARD_POPOVER_WIDTH, SOUNDBOARD_POPOVER_HEIGHT } from "../constants";
 import { describeError } from "../debug";
 import { AudioBridgeMessage, openAudioChannel } from "../audioBridge";
 
@@ -38,6 +38,9 @@ export class MoulinetteBrowser {
   // Sound playback itself lives in the toolbar action's popover, not this
   // modal, so it keeps going after the modal is closed - see src/audioBridge.ts.
   private audioChannel: BroadcastChannel;
+  // Locks onto the first host instance heard from and ignores any other - see
+  // the matching field/comment in src/ui/soundboard.ts.
+  private lockedHostId: string | null = null;
 
   constructor(root: HTMLElement) {
     this.root = root;
@@ -60,7 +63,10 @@ export class MoulinetteBrowser {
     this.audioChannel = openAudioChannel();
     this.audioChannel.onmessage = (event: MessageEvent<AudioBridgeMessage>) => {
       if (event.data.type !== "state") return;
-      this.currentAudioAssetId = event.data.assetId;
+      if (typeof event.data.hostId !== "string") return; // stale popover bundle - see soundboard.ts's matching check
+      if (this.lockedHostId === null) this.lockedHostId = event.data.hostId;
+      if (event.data.hostId !== this.lockedHostId) return;
+      this.currentAudioAssetId = event.data.preview;
       this.updatePlayButtons();
     };
   }
@@ -84,10 +90,11 @@ export class MoulinetteBrowser {
           <div class="mou-brand"><img class="mou-logo" src="icon.svg" alt="" /> Moulinette Media Search</div>
           <div class="mou-header-right">
             <div class="mou-account" id="mou-account"></div>
+            <button class="mou-btn" id="mou-soundboard-toggle" title="Tabletop Audio &amp; Michael Ghelfi Studios, ready to play - opens docked to the side, independent of this window"><i class="fa-solid fa-drum"></i> Soundboard</button>
             <button class="mou-btn mou-close" id="mou-close" title="Close (Esc)"><i class="fa-solid fa-xmark"></i></button>
           </div>
         </header>
-        <div class="mou-body">
+        <div class="mou-body" id="mou-body">
           <aside class="mou-sidebar">
             <section class="mou-filter-group">
               <h2>Source</h2>
@@ -162,12 +169,46 @@ export class MoulinetteBrowser {
     this.renderCollectionsList();
     this.renderAdvancedSettings();
 
+    this.el("#mou-soundboard-toggle").addEventListener("click", () => this.openSoundboard());
+
     // A fullScreen OBR.modal replaces the entire Owlbear UI with no host-provided
     // close button - without this, there would be no way back to the room at all.
     this.el("#mou-close").addEventListener("click", () => this.close());
     document.addEventListener("keydown", (e) => {
       if (e.key === "Escape") this.close();
     });
+  }
+
+  /**
+   * The Soundboard (src/ui/soundboard.ts, hosted on its own page - see
+   * soundboard.html/src/soundboardMain.ts) is a separate OBR.popover rather
+   * than something shown inside this modal: the GM wants to keep it open
+   * while using the rest of Owlbear normally (moving tokens, other tools,
+   * ...), which a modal - centered, no positioning control, and typically
+   * blocking interaction with the room - can't do. This modal isn't needed
+   * at the same time, so it closes itself once the popover is up, instead of
+   * sitting open behind it taking up screen space for nothing.
+   */
+  private openSoundboard(): void {
+    OBR.popover.open({
+      id: SOUNDBOARD_POPOVER_ID,
+      url: new URL("soundboard.html", document.baseURI).href,
+      width: SOUNDBOARD_POPOVER_WIDTH,
+      height: SOUNDBOARD_POPOVER_HEIGHT,
+      anchorReference: "POSITION",
+      anchorPosition: { left: 0, top: 0 },
+      anchorOrigin: { horizontal: "LEFT", vertical: "TOP" },
+      transformOrigin: { horizontal: "LEFT", vertical: "TOP" },
+      disableClickAway: true,
+      // Owlbear's own popover chrome otherwise wraps the iframe in a padded,
+      // rounded, elevated "paper" and keeps a default margin from the
+      // viewport edge - both fought the "flush against the screen edge"
+      // look, so both are turned off; the panel draws its own background and
+      // shadow instead (see style.css's .mou-sb-page).
+      hidePaper: true,
+      marginThreshold: 0,
+    });
+    this.close();
   }
 
   private close(): void {
@@ -712,11 +753,11 @@ export class MoulinetteBrowser {
 
   private async togglePlay(asset: MediaAsset): Promise<void> {
     if (this.currentAudioAssetId === asset.id) {
-      this.audioChannel.postMessage({ type: "stop" } satisfies AudioBridgeMessage);
+      this.audioChannel.postMessage({ type: "stop", group: "preview", assetId: asset.id } satisfies AudioBridgeMessage);
       this.currentAudioAssetId = null;
     } else {
       const url = this.collection.getPlaybackUrl ? await this.collection.getPlaybackUrl(asset) : asset.previewUrl;
-      this.audioChannel.postMessage({ type: "play", assetId: asset.id, url } satisfies AudioBridgeMessage);
+      this.audioChannel.postMessage({ type: "play", group: "preview", assetId: asset.id, url } satisfies AudioBridgeMessage);
       this.currentAudioAssetId = asset.id;
     }
     this.updatePlayButtons();

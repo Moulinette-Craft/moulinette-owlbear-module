@@ -26,6 +26,29 @@ export const EXTENSION_ID = "cloud.moulinette.owlbear-media-search";
 // entire Owlbear UI with no host-provided close button of its own).
 export const MODAL_ID = `${EXTENSION_ID}/browser`;
 
+// Shared between src/ui/browser.ts (which opens this popover) and
+// src/soundboardMain.ts (which needs the same id to close it again). A
+// separate OBR.popover rather than nested inside MODAL_ID's modal, so the
+// Soundboard can stay docked to the screen edge and open at the same time as
+// - instead of on top of - the browse modal and the rest of Owlbear's own UI.
+export const SOUNDBOARD_POPOVER_ID = `${EXTENSION_ID}/soundboard`;
+
+// The panel itself is drawn flush against the popover iframe's left edge at
+// this width; SOUNDBOARD_SHADOW_MARGIN is extra, otherwise-empty iframe width
+// reserved to its right so the panel's own box-shadow (see style.css) has
+// somewhere to render into - a box-shadow can't paint outside its iframe's
+// own rectangle, so without this margin it would just get clipped invisible
+// at the edge. The popover is requested at their sum; soundboardMain.ts's
+// minimize toggle shrinks it down to SOUNDBOARD_MINIMIZED_SIZE instead.
+export const SOUNDBOARD_PANEL_WIDTH = 320;
+export const SOUNDBOARD_SHADOW_MARGIN = 32;
+export const SOUNDBOARD_POPOVER_WIDTH = SOUNDBOARD_PANEL_WIDTH + SOUNDBOARD_SHADOW_MARGIN;
+// Clamped to the actual available height by Owlbear (unconfirmed by the SDK's
+// own docs, which have none - found by testing) - comfortably taller than any
+// real screen so it always reaches the bottom edge.
+export const SOUNDBOARD_POPOVER_HEIGHT = 2000;
+export const SOUNDBOARD_MINIMIZED_SIZE = 56;
+
 export const PAGE_SIZE = 60;
 
 // Below this size (in cell-units), a source image found in a Moulinette pack is
