@@ -184,6 +184,9 @@ function initAudioHost(): void {
       const track = soundboardTracks.get(msg.assetId);
       if (track) track.gain.gain.value = msg.volume;
       broadcastState();
+    } else if (msg.type === "set-loop") {
+      const track = soundboardTracks.get(msg.assetId);
+      if (track) track.source.loop = msg.loop;
     } else if (msg.type === "get-state") {
       broadcastState();
     }

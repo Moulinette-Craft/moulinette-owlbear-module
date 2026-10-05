@@ -36,6 +36,8 @@ export type AudioBridgeMessage =
   | { type: "play"; group: AudioGroup; assetId: string; url: string; volume?: number; loop?: boolean }
   | { type: "stop"; group: AudioGroup; assetId: string }
   | { type: "set-volume"; group: "soundboard"; assetId: string; volume: number }
+  /** Turns looping on/off for an already playing soundboard track - turning it off lets the track finish its current pass and end. */
+  | { type: "set-loop"; group: "soundboard"; assetId: string; loop: boolean }
   /** Sent by a freshly (re)opened modal to learn what's already playing, if anything. */
   | { type: "get-state" }
   /**

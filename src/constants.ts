@@ -18,6 +18,7 @@ export const DISCORD_CLIENT_ID = "1104472072853405706";
 export const LS_SESSION_ID = "moulinette:session_id";
 export const LS_SETTINGS = "moulinette:settings";
 export const LS_LAST_SEARCH = "moulinette:last_search";
+export const LS_SOUNDBOARD_LOOPS = "moulinette:soundboard_loops";
 
 export const EXTENSION_ID = "cloud.moulinette.owlbear-media-search";
 

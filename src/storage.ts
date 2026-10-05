@@ -1,4 +1,4 @@
-import { AdvancedSettings, DEFAULT_ADVANCED_SETTINGS, LS_LAST_SEARCH, LS_SESSION_ID, LS_SETTINGS } from "./constants";
+import { AdvancedSettings, DEFAULT_ADVANCED_SETTINGS, LS_LAST_SEARCH, LS_SESSION_ID, LS_SETTINGS, LS_SOUNDBOARD_LOOPS } from "./constants";
 import { SearchFilters } from "./types";
 
 /**
@@ -57,4 +57,23 @@ export function getLastSearch(): PersistedSearch | null {
 
 export function setLastSearch(state: PersistedSearch): void {
   localStorage.setItem(LS_LAST_SEARCH, JSON.stringify(state));
+}
+
+/** Soundboard sound id -> loop on/off, only for sounds where the user overrode the default (filename contains "loop"). */
+export function getSoundboardLoops(): Record<string, boolean> {
+  try {
+    const raw = localStorage.getItem(LS_SOUNDBOARD_LOOPS);
+    const parsed = raw ? JSON.parse(raw) : null;
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+export function setSoundboardLoops(loops: Record<string, boolean>): void {
+  try {
+    localStorage.setItem(LS_SOUNDBOARD_LOOPS, JSON.stringify(loops));
+  } catch {
+    /* storage unavailable - the override just won't survive a reload */
+  }
 }

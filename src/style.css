@@ -912,6 +912,23 @@ body {
   color: var(--mou-accent-contrast);
 }
 
+.mou-sb-track-parent {
+  cursor: pointer;
+}
+
+.mou-sb-track-variant {
+  padding-left: 48px;
+}
+
+.mou-sb-track-versions {
+  flex: 0 0 auto;
+  font-size: 10px;
+  color: var(--mou-text-dim);
+  border: 1px solid var(--mou-border);
+  border-radius: 8px;
+  padding: 0 6px;
+}
+
 .mou-sb-track-name {
   flex: 1 1 auto;
   min-width: 0;
@@ -921,10 +938,24 @@ body {
   text-overflow: ellipsis;
 }
 
-.mou-sb-track-loop {
+.mou-sb-loop {
   flex: 0 0 auto;
+  background: none;
+  border: none;
+  padding: 2px;
+  cursor: pointer;
   font-size: 10px;
   color: var(--mou-text-dim);
+  opacity: 0.35;
+}
+
+.mou-sb-loop:hover {
+  opacity: 1;
+}
+
+.mou-sb-loop.mou-sb-loop-active {
+  color: var(--mou-accent);
+  opacity: 1;
 }
 
 .mou-sb-track-duration {
