@@ -32,7 +32,8 @@ const CHANNEL_NAME = "moulinette-audio";
 export type AudioGroup = "preview" | "soundboard";
 
 export type AudioBridgeMessage =
-  | { type: "play"; group: AudioGroup; assetId: string; url: string; volume?: number }
+  /** `loop` only ever applies to the "soundboard" group - a "preview" track always plays once, like a quick audition should. */
+  | { type: "play"; group: AudioGroup; assetId: string; url: string; volume?: number; loop?: boolean }
   | { type: "stop"; group: AudioGroup; assetId: string }
   | { type: "set-volume"; group: "soundboard"; assetId: string; volume: number }
   /** Sent by a freshly (re)opened modal to learn what's already playing, if anything. */

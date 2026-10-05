@@ -821,24 +821,29 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
-  background: none;
+  background: var(--mou-bg-card);
   border: none;
+  border-left: 3px solid transparent;
   color: var(--mou-text);
-  padding: 8px 12px;
+  padding: 9px 12px 9px 9px;
   font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
   cursor: pointer;
   text-align: left;
 }
 
 .mou-sb-group-header:hover {
-  background: var(--mou-bg-card);
+  border-left-color: var(--mou-accent);
 }
 
 .mou-sb-group-header i {
   flex: 0 0 auto;
-  font-size: 11px;
-  color: var(--mou-text-dim);
-  width: 12px;
+  font-size: 12px;
+  color: var(--mou-accent);
+  width: 14px;
+  text-align: center;
 }
 
 .mou-sb-group-name {
@@ -851,8 +856,14 @@ body {
 
 .mou-sb-group-count {
   flex: 0 0 auto;
-  color: var(--mou-text-dim);
+  color: var(--mou-accent-contrast);
   font-size: 11px;
+  font-weight: 700;
+  text-transform: none;
+  letter-spacing: normal;
+  background: var(--mou-accent);
+  padding: 2px 8px;
+  border-radius: 10px;
 }
 
 .mou-sb-tracks {
@@ -908,6 +919,12 @@ body {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.mou-sb-track-loop {
+  flex: 0 0 auto;
+  font-size: 10px;
+  color: var(--mou-text-dim);
 }
 
 .mou-sb-track-duration {

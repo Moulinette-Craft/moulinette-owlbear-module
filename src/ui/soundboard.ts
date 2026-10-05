@@ -49,6 +49,8 @@ interface Sound {
   folder: string;
   duration?: number;
   url: string;
+  /** Mirrors the FVTT app's own rule (see e.g. MouSoundPads._onPlaySound): no explicit metadata for this, a sound loops iff its filename contains "loop". */
+  loop: boolean;
 }
 
 /** Mirrors MouSoundPads.cleanSoundName() - turns a bare filename into a readable title when the asset has no explicit audio.title. */
@@ -189,6 +191,7 @@ export class SoundboardPanel {
         folder,
         duration: r.audio?.duration,
         url: `${MOU_STORAGE}${r.pack.creator_ref}/${r.pack.path}/${r.uri}`,
+        loop: r.filepath.toLowerCase().includes("loop"),
       });
     }
     return sounds;
@@ -359,6 +362,7 @@ export class SoundboardPanel {
       <div class="mou-sb-track" data-id="${escapeHtml(s.id)}">
         <button class="mou-sb-play" title="Play / stop"><i class="fa-solid fa-play"></i></button>
         <span class="mou-sb-track-name" title="${escapeHtml(s.name)}">${escapeHtml(s.name)}</span>
+        ${s.loop ? `<i class="fa-solid fa-rotate mou-sb-track-loop" title="Loops"></i>` : ""}
         ${duration ? `<span class="mou-sb-track-duration">${escapeHtml(duration)}</span>` : ""}
       </div>
     `;
@@ -382,7 +386,7 @@ export class SoundboardPanel {
         this.audioChannel.postMessage({ type: "stop", group: "soundboard", assetId: id } satisfies AudioBridgeMessage);
       } else {
         this.playing.set(id, this.globalVolume);
-        this.audioChannel.postMessage({ type: "play", group: "soundboard", assetId: id, url: sound.url, volume: this.globalVolume } satisfies AudioBridgeMessage);
+        this.audioChannel.postMessage({ type: "play", group: "soundboard", assetId: id, url: sound.url, volume: this.globalVolume, loop: sound.loop } satisfies AudioBridgeMessage);
       }
       this.updateTrackButtons();
     });

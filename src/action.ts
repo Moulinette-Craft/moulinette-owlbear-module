@@ -115,7 +115,7 @@ function initAudioHost(): void {
     soundboardTracks.delete(assetId);
   };
 
-  const startTrack = async (url: string, volume: number): Promise<PlayingTrack> => {
+  const startTrack = async (url: string, volume: number, loop: boolean): Promise<PlayingTrack> => {
     // No-op once actually running (the common case) - only matters the very
     // first time, in case this context started "suspended" per the browser's
     // autoplay policy.
@@ -123,6 +123,7 @@ function initAudioHost(): void {
     const buffer = await loadBuffer(url);
     const source = audioContext.createBufferSource();
     source.buffer = buffer;
+    source.loop = loop; // a looping source never fires "ended" on its own - only an explicit stop() does, which is exactly what a soundboard ambience track wants
     const gain = audioContext.createGain();
     gain.gain.value = volume;
     source.connect(gain).connect(audioContext.destination);
@@ -136,7 +137,7 @@ function initAudioHost(): void {
       stopPreview();
       const assetId = msg.assetId;
       previewAssetId = assetId;
-      startTrack(msg.url, 1)
+      startTrack(msg.url, 1, false)
         .then((track) => {
           if (previewAssetId !== assetId) {
             // Superseded by a newer preview while this one was still loading.
@@ -162,7 +163,7 @@ function initAudioHost(): void {
     } else if (msg.type === "play" && msg.group === "soundboard") {
       stopSoundboardTrack(msg.assetId); // clean restart if it was already playing
       const assetId = msg.assetId;
-      startTrack(msg.url, msg.volume ?? 1)
+      startTrack(msg.url, msg.volume ?? 1, msg.loop ?? false)
         .then((track) => {
           soundboardTracks.set(assetId, track);
           track.source.onended = () => {
