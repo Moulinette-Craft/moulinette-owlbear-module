@@ -1,6 +1,6 @@
 import OBR from "@owlbear-rodeo/sdk";
 import { MODAL_ID } from "./constants";
-import { AudioBridgeMessage, openAudioChannel } from "./audioBridge";
+import { AudioBridgeMessage, openAudioChannel, PlayMode } from "./audioBridge";
 
 // A large fixed size rather than fullScreen: true - takes up a good part of the
 // screen without covering the whole room. Owlbear's modal has no drag-to-resize
@@ -19,6 +19,18 @@ declare global {
 interface PlayingTrack {
   source: AudioBufferSourceNode;
   gain: GainNode;
+}
+
+interface SoundboardTrack extends PlayingTrack {
+  buffer: AudioBuffer;
+  mode: PlayMode;
+  /** audioContext time `source` starts at - still in the future while waiting between two runs of a repeated track. */
+  startAt: number;
+}
+
+/** Pause before the next run of a repeated track: the chosen interval, randomly stretched by +0-25%. */
+function repeatDelay(seconds: number): number {
+  return seconds * (1 + Math.random() * 0.25);
 }
 
 /**
@@ -81,7 +93,7 @@ function initAudioHost(): void {
 
   let previewAssetId: string | null = null;
   let previewTrack: PlayingTrack | null = null;
-  const soundboardTracks = new Map<string, PlayingTrack>();
+  const soundboardTracks = new Map<string, SoundboardTrack>();
 
   const broadcastState = () => {
     channel.postMessage({
@@ -113,6 +125,32 @@ function initAudioHost(): void {
     if (!track) return;
     stopNode(track);
     soundboardTracks.delete(assetId);
+  };
+
+  /**
+   * Starts one run of a soundboard track at `startAt` (audioContext time).
+   * Scheduled on the audio clock rather than with setTimeout, which browsers
+   * throttle in hidden frames like this popover - a repeated track stays in
+   * `soundboardTracks` (so it still shows as playing) while waiting for its
+   * next run, and stopping it cancels that pending run.
+   */
+  const playSoundboardRun = (assetId: string, track: SoundboardTrack, startAt: number) => {
+    const source = audioContext.createBufferSource();
+    source.buffer = track.buffer;
+    source.loop = track.mode === "loop";
+    source.connect(track.gain);
+    source.onended = () => {
+      if (soundboardTracks.get(assetId) !== track) return;
+      if (typeof track.mode === "number") {
+        playSoundboardRun(assetId, track, audioContext.currentTime + repeatDelay(track.mode));
+        return;
+      }
+      soundboardTracks.delete(assetId);
+      broadcastState();
+    };
+    source.start(startAt);
+    track.source = source;
+    track.startAt = startAt;
   };
 
   const startTrack = async (url: string, volume: number, loop: boolean): Promise<PlayingTrack> => {
@@ -163,13 +201,18 @@ function initAudioHost(): void {
     } else if (msg.type === "play" && msg.group === "soundboard") {
       stopSoundboardTrack(msg.assetId); // clean restart if it was already playing
       const assetId = msg.assetId;
-      startTrack(msg.url, msg.volume ?? 1, msg.loop ?? false)
-        .then((track) => {
+      const mode = msg.mode ?? "once";
+      const volume = msg.volume ?? 1;
+      audioContext
+        .resume()
+        .then(() => loadBuffer(msg.url))
+        .then((buffer) => {
+          const gain = audioContext.createGain();
+          gain.gain.value = volume;
+          gain.connect(audioContext.destination);
+          const track = { buffer, gain, mode, startAt: 0 } as SoundboardTrack;
           soundboardTracks.set(assetId, track);
-          track.source.onended = () => {
-            soundboardTracks.delete(assetId);
-            broadcastState();
-          };
+          playSoundboardRun(assetId, track, audioContext.currentTime);
           console.log(`Moulinette | Audio host ${hostId}: playing ${assetId}`);
           broadcastState();
         })
@@ -184,9 +227,22 @@ function initAudioHost(): void {
       const track = soundboardTracks.get(msg.assetId);
       if (track) track.gain.gain.value = msg.volume;
       broadcastState();
-    } else if (msg.type === "set-loop") {
+    } else if (msg.type === "set-mode") {
       const track = soundboardTracks.get(msg.assetId);
-      if (track) track.source.loop = msg.loop;
+      if (track) {
+        track.mode = msg.mode;
+        if (track.startAt > audioContext.currentTime) {
+          // Waiting between two runs: the pending run follows the new mode right away.
+          stopNode(track);
+          if (typeof msg.mode === "number") playSoundboardRun(msg.assetId, track, audioContext.currentTime + repeatDelay(msg.mode));
+          else if (msg.mode === "loop") playSoundboardRun(msg.assetId, track, audioContext.currentTime);
+          else soundboardTracks.delete(msg.assetId);
+        } else {
+          // Mid-run: only (un)looping changes now, the "ended" handler applies the rest.
+          track.source.loop = msg.mode === "loop";
+        }
+      }
+      broadcastState();
     } else if (msg.type === "get-state") {
       broadcastState();
     }

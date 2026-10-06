@@ -1,7 +1,7 @@
 import { MoulinetteClient } from "../clients/moulinette";
 import { MOU_STORAGE } from "../constants";
-import { AudioBridgeMessage, openAudioChannel } from "../audioBridge";
-import { getSoundboardLoops, setSoundboardLoops } from "../storage";
+import { AudioBridgeMessage, openAudioChannel, PlayMode } from "../audioBridge";
+import { getSoundboardModes, setSoundboardModes } from "../storage";
 import { debounce, escapeHtml, matchesSearchTerm, prettyDuration } from "../utils";
 
 /**
@@ -33,6 +33,13 @@ const CREATORS: Record<string, string> = {
   michaelghelfi: "Michael Ghelfi",
 };
 
+/** "Repeat" choices, in seconds - Tabletop Audio's own SoundPad list, plus 5 s for short effects like footsteps. */
+const REPEAT_INTERVALS = [5, 10, 15, 30, 60, 120, 180, 300, 900, 1800];
+
+function intervalLabel(seconds: number): string {
+  return seconds < 60 ? `${seconds} s` : `${seconds / 60} min`;
+}
+
 interface RawSoundpadAsset {
   filepath: string;
   uri: string;
@@ -49,7 +56,7 @@ interface Sound {
   folder: string;
   duration?: number;
   url: string;
-  /** Default looping - mirrors the FVTT app's own rule (see e.g. MouSoundPads._onPlaySound): no explicit metadata for this, a sound loops iff its filename contains "loop". The user can override it per sound, see isLooping(). */
+  /** Default looping - mirrors the FVTT app's own rule (see e.g. MouSoundPads._onPlaySound): no explicit metadata for this, a sound loops iff its filename contains "loop". The user can override it per sound, see modeOf(). */
   loop: boolean;
   /** Short name shown when listed as one version among its parent's variants - the text in parentheses of its name, e.g. "Tavern (Ambience Only)" -> "Ambience Only". */
   variantLabel: string;
@@ -109,8 +116,8 @@ export class SoundboardPanel {
   private expandedVariants = new Set<string>();
   private searchTerm = "";
   private globalVolume = 1;
-  /** User overrides of Sound.loop, persisted across sessions (only entries differing from the default are kept). */
-  private loopOverrides = getSoundboardLoops();
+  /** User overrides of each sound's default play mode, persisted across sessions (only entries differing from the default are kept). */
+  private modeOverrides = getSoundboardModes();
 
   /** assetId (Sound.id) -> current volume, mirrors the host's own soundboard state. */
   private playing = new Map<string, number>();
@@ -426,38 +433,47 @@ export class SoundboardPanel {
 
   private renderPlayableRow(s: Sound, label: string, extraClass: string): string {
     const duration = s.duration ? prettyDuration(s.duration) : "";
-    const loop = this.isLooping(s);
+    const mode = this.modeOf(s);
     return `
       <div class="mou-sb-track${extraClass}" data-id="${escapeHtml(s.id)}">
         <button class="mou-sb-play" title="Play / stop"><i class="fa-solid fa-play"></i></button>
         <span class="mou-sb-track-name" title="${escapeHtml(s.name)}">${escapeHtml(label)}</span>
-        <button class="mou-sb-loop${loop ? " mou-sb-loop-active" : ""}" title="${loop ? "Loop on - click to play once" : "Loop off - click to loop"}"><i class="fa-solid fa-rotate"></i></button>
+        <select class="mou-sb-mode${mode !== "once" ? " mou-sb-mode-active" : ""}" title="Play once, loop, or repeat with a pause between plays (+0-25% random)">
+          <option value="once"${mode === "once" ? " selected" : ""}>Once</option>
+          <option value="loop"${mode === "loop" ? " selected" : ""}>Loop</option>
+          <optgroup label="Repeat, with a pause of">
+            ${REPEAT_INTERVALS.map((sec) => `<option value="${sec}"${mode === sec ? " selected" : ""}>${intervalLabel(sec)}</option>`).join("")}
+          </optgroup>
+        </select>
         ${duration ? `<span class="mou-sb-track-duration">${escapeHtml(duration)}</span>` : ""}
       </div>
     `;
   }
 
-  private isLooping(s: Sound): boolean {
-    return this.loopOverrides[s.id] ?? s.loop;
+  private defaultMode(s: Sound): PlayMode {
+    return s.loop ? "loop" : "once";
   }
 
-  private toggleLoop(s: Sound, button: HTMLButtonElement): void {
-    const loop = !this.isLooping(s);
-    if (loop === s.loop) delete this.loopOverrides[s.id];
-    else this.loopOverrides[s.id] = loop;
-    setSoundboardLoops(this.loopOverrides);
+  private modeOf(s: Sound): PlayMode {
+    return this.modeOverrides[s.id] ?? this.defaultMode(s);
+  }
+
+  private setMode(s: Sound, value: string): void {
+    const mode: PlayMode = value === "once" || value === "loop" ? value : Number(value);
+    if (mode === this.defaultMode(s)) delete this.modeOverrides[s.id];
+    else this.modeOverrides[s.id] = mode;
+    setSoundboardModes(this.modeOverrides);
     if (this.playing.has(s.id)) {
-      this.audioChannel.postMessage({ type: "set-loop", group: "soundboard", assetId: s.id, loop } satisfies AudioBridgeMessage);
+      this.audioChannel.postMessage({ type: "set-mode", group: "soundboard", assetId: s.id, mode } satisfies AudioBridgeMessage);
     }
     // the same sound can be listed twice (e.g. in two folders), keep every copy in sync
     this.container.querySelectorAll<HTMLElement>(".mou-sb-track:not(.mou-sb-track-parent)").forEach((row) => {
       if (row.dataset.id !== s.id) return;
-      const btn = row.querySelector<HTMLButtonElement>(".mou-sb-loop");
-      if (!btn) return;
-      btn.classList.toggle("mou-sb-loop-active", loop);
-      btn.title = loop ? "Loop on - click to play once" : "Loop off - click to loop";
+      const select = row.querySelector<HTMLSelectElement>(".mou-sb-mode");
+      if (!select) return;
+      select.value = value;
+      select.classList.toggle("mou-sb-mode-active", mode !== "once");
     });
-    button.blur();
   }
 
   private wireTrackRow(row: HTMLElement): void {
@@ -488,13 +504,13 @@ export class SoundboardPanel {
         this.audioChannel.postMessage({ type: "stop", group: "soundboard", assetId: id } satisfies AudioBridgeMessage);
       } else {
         this.playing.set(id, this.globalVolume);
-        this.audioChannel.postMessage({ type: "play", group: "soundboard", assetId: id, url: sound.url, volume: this.globalVolume, loop: this.isLooping(sound) } satisfies AudioBridgeMessage);
+        this.audioChannel.postMessage({ type: "play", group: "soundboard", assetId: id, url: sound.url, volume: this.globalVolume, mode: this.modeOf(sound) } satisfies AudioBridgeMessage);
       }
       this.updateTrackButtons();
     });
 
-    const loopBtn = row.querySelector<HTMLButtonElement>(".mou-sb-loop")!;
-    loopBtn.addEventListener("click", () => this.toggleLoop(sound, loopBtn));
+    const modeSelect = row.querySelector<HTMLSelectElement>(".mou-sb-mode")!;
+    modeSelect.addEventListener("change", () => this.setMode(sound, modeSelect.value));
 
     this.wirePreview(row, id, sound);
   }

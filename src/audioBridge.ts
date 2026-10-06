@@ -31,13 +31,21 @@ const CHANNEL_NAME = "moulinette-audio";
 
 export type AudioGroup = "preview" | "soundboard";
 
+/**
+ * How a soundboard track plays: once, looped seamlessly, or replayed over and
+ * over with a pause of that many seconds between the end of one run and the
+ * start of the next (randomly stretched by +0-25% each time so it doesn't
+ * sound mechanical, e.g. a monster roar every ~minute).
+ */
+export type PlayMode = "once" | "loop" | number;
+
 export type AudioBridgeMessage =
-  /** `loop` only ever applies to the "soundboard" group - a "preview" track always plays once, like a quick audition should. */
-  | { type: "play"; group: AudioGroup; assetId: string; url: string; volume?: number; loop?: boolean }
+  /** `mode` only ever applies to the "soundboard" group - a "preview" track always plays once, like a quick audition should. */
+  | { type: "play"; group: AudioGroup; assetId: string; url: string; volume?: number; mode?: PlayMode }
   | { type: "stop"; group: AudioGroup; assetId: string }
   | { type: "set-volume"; group: "soundboard"; assetId: string; volume: number }
-  /** Turns looping on/off for an already playing soundboard track - turning it off lets the track finish its current pass and end. */
-  | { type: "set-loop"; group: "soundboard"; assetId: string; loop: boolean }
+  /** Changes the mode of an already playing soundboard track - the current run finishes before the new mode takes over (e.g. "once" lets it end). */
+  | { type: "set-mode"; group: "soundboard"; assetId: string; mode: PlayMode }
   /** Sent by a freshly (re)opened modal to learn what's already playing, if anything. */
   | { type: "get-state" }
   /**

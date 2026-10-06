@@ -938,24 +938,31 @@ body {
   text-overflow: ellipsis;
 }
 
-.mou-sb-loop {
+.mou-sb-mode {
   flex: 0 0 auto;
-  background: none;
-  border: none;
-  padding: 2px;
-  cursor: pointer;
-  font-size: 10px;
+  max-width: 64px;
+  background: transparent;
+  border: 1px solid var(--mou-border);
+  border-radius: 4px;
   color: var(--mou-text-dim);
-  opacity: 0.35;
+  font-size: 10px;
+  padding: 1px 2px;
+  cursor: pointer;
 }
 
-.mou-sb-loop:hover {
-  opacity: 1;
+.mou-sb-mode:hover {
+  border-color: var(--mou-accent);
 }
 
-.mou-sb-loop.mou-sb-loop-active {
+.mou-sb-mode.mou-sb-mode-active {
+  border-color: var(--mou-accent);
   color: var(--mou-accent);
-  opacity: 1;
+}
+
+.mou-sb-mode option,
+.mou-sb-mode optgroup {
+  background: var(--mou-bg-card);
+  color: var(--mou-text);
 }
 
 .mou-sb-track-duration {

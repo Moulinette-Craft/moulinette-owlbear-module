@@ -1,3 +1,4 @@
+import { PlayMode } from "./audioBridge";
 import { AdvancedSettings, DEFAULT_ADVANCED_SETTINGS, LS_LAST_SEARCH, LS_SESSION_ID, LS_SETTINGS, LS_SOUNDBOARD_LOOPS } from "./constants";
 import { SearchFilters } from "./types";
 
@@ -59,20 +60,27 @@ export function setLastSearch(state: PersistedSearch): void {
   localStorage.setItem(LS_LAST_SEARCH, JSON.stringify(state));
 }
 
-/** Soundboard sound id -> loop on/off, only for sounds where the user overrode the default (filename contains "loop"). */
-export function getSoundboardLoops(): Record<string, boolean> {
+/** Soundboard sound id -> play mode, only for sounds where the user overrode the default (loop iff the filename contains "loop"). */
+export function getSoundboardModes(): Record<string, PlayMode> {
   try {
     const raw = localStorage.getItem(LS_SOUNDBOARD_LOOPS);
     const parsed = raw ? JSON.parse(raw) : null;
-    return parsed && typeof parsed === "object" ? parsed : {};
+    if (!parsed || typeof parsed !== "object") return {};
+    const modes: Record<string, PlayMode> = {};
+    for (const [id, value] of Object.entries(parsed)) {
+      // 0.4.0 stored a plain loop on/off boolean
+      if (typeof value === "boolean") modes[id] = value ? "loop" : "once";
+      else if (value === "once" || value === "loop" || (typeof value === "number" && value > 0)) modes[id] = value;
+    }
+    return modes;
   } catch {
     return {};
   }
 }
 
-export function setSoundboardLoops(loops: Record<string, boolean>): void {
+export function setSoundboardModes(modes: Record<string, PlayMode>): void {
   try {
-    localStorage.setItem(LS_SOUNDBOARD_LOOPS, JSON.stringify(loops));
+    localStorage.setItem(LS_SOUNDBOARD_LOOPS, JSON.stringify(modes));
   } catch {
     /* storage unavailable - the override just won't survive a reload */
   }
