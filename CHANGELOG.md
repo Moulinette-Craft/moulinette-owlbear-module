@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.5.0
+
+- SoundPads: each sound can now play once, loop, or repeat with a pause between
+  plays (every 5 s, 10 s, 15 s, 30 s, 1 min, 2 min, 3 min, 5 min, 15 min or
+  30 min). The pause starts when the sound ends and varies randomly by up to
+  +25% so it doesn't sound mechanical - e.g. a looping song, a monster roar
+  about once a minute and footsteps every few seconds, all at the same time.
+  Repeats keep going while the SoundPads panel is closed.
+- The loop toggle from 0.4.0 is replaced by this play-mode menu; your previous
+  loop choices are kept.
+
 ## 0.4.0
 
 - SoundPads: alternate versions of a music (e.g. "ambience only") are now listed
